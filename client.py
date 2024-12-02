@@ -1,7 +1,6 @@
 import socket
 import os
-from tkinter import Tk
-from tkinter.filedialog import askopenfilename
+from tkinter import Tk, Button, filedialog, Label
 
 PORT = 8080
 HEADER = 64
@@ -15,12 +14,24 @@ SERVER = "192.168.137.227"  # Địa chỉ IP của server
 ADDR = (SERVER, PORT)
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect(ADDR)  # Kết nối đến server
+
+def connect_to_server():
+    try:
+        client.connect(ADDR)  # Kết nối đến server
+        print("Kết nối đến server thành công.")
+    except Exception as e:
+        print(f"Không thể kết nối đến server: {e}")
+        return False
+    return True
 
 def send_message(msg):
     """
     Gửi một tin nhắn dạng text đến server
     """
+    if client.fileno() == -1:  # Kiểm tra nếu socket đã bị đóng
+        print("Socket đã bị đóng, không thể gửi tin nhắn.")
+        return
+
     message = msg.encode(FORMAT)
     msg_length = len(message)
     send_length = str(msg_length).encode(FORMAT)
@@ -32,34 +43,27 @@ def send_file(file_path):
     """
     Gửi một file đến server
     """
-    # Gửi thông báo FILE_TRANSFER_MESSAGE để báo hiệu gửi file
     send_message(f"{FILE_TRANSFER_MESSAGE} {file_path.split('/')[-1]}")
 
-    # Đọc dữ liệu file và gửi đến server
     with open(file_path, "rb") as file:
         file_data = file.read()
         file_length = len(file_data)
 
-        # Gửi độ dài dữ liệu file
         send_length = str(file_length).encode(FORMAT)
         send_length += b' ' * (HEADER - len(send_length))
         client.send(send_length)
 
-        # Gửi nội dung file
         client.send(file_data)
 
     print(f"File {file_path.split('/')[-1]} đã được gửi.")
-    # Nhận phản hồi từ server
     print(f"From server: {client.recv(2048).decode(FORMAT)}")
 
 def download_file(filename):
     """
     Yêu cầu server gửi file về client
     """
-    # Gửi yêu cầu tải file
     send_message(f"{FILE_DOWNLOAD_REQUEST} {filename}")
 
-    # Nhận thông báo và kích thước file
     file_name = client.recv(HEADER).decode(FORMAT)
     file_size = int(client.recv(HEADER).decode(FORMAT))
 
@@ -67,6 +71,9 @@ def download_file(filename):
         print("File không tồn tại trên server.")
     else:
         print(f"Đang tải xuống file: {file_name}, kích thước: {file_size} bytes")
+        if not os.path.exists('client_data'):
+            os.makedirs('client_data')
+
         with open(f"client_data/{file_name}", "wb") as file:
             total_received = 0
             while total_received < file_size:
@@ -74,6 +81,7 @@ def download_file(filename):
                 total_received += len(file_data)
                 file.write(file_data)
             print(f"File {file_name} đã được tải xuống.")
+            print(f"From server: {client.recv(2048).decode(FORMAT)}")
 
 def list_files():
     """
@@ -89,34 +97,53 @@ def list_files():
         print("Không có file nào trên server.")
         return []
 
-# Mở hộp thoại để chọn file và gửi hoặc tải
-Tk().withdraw()  # Ẩn cửa sổ chính của Tkinter
-while True:
-    choice = input("Bạn muốn gửi (upload) hay tải (download) file: ").lower()
-    if choice == "upload":
-        # Chọn file upload từ máy tính client
-        file_path = askopenfilename(title="Chọn file để gửi")  # Chọn file bằng hộp thoại
-        if file_path:
-            send_file(file_path)  # Gửi file đã chọn lên server
+# Tạo giao diện Tkinter
+root = Tk()
+root.title("File Upload/Download")
+
+# Nút Upload
+def on_upload_button_click():
+    file_path = filedialog.askopenfilename(title="Chọn file để gửi")  # Chọn file từ máy tính
+    if file_path:
+        send_file(file_path)  # Gửi file đã chọn lên server
+    else:
+        print("Không có file nào được chọn.")
+
+upload_button = Button(root, text="Upload File", command=on_upload_button_click)
+upload_button.pack(pady=20)
+
+# Nút Download
+def on_download_button_click():
+    files = list_files()  # Lấy danh sách các file có sẵn từ server
+    if files:
+        # Cho phép người dùng chọn file bằng giao diện đồ họa
+        file_to_download = filedialog.askopenfilename(title="Chọn file để tải xuống", initialdir="server_data", filetypes=[("All files", "*.*")])
+
+        if file_to_download:
+            # Chỉ lấy tên file, không cần đường dẫn đầy đủ
+            file_to_download = file_to_download.split("/")[-1]
+            download_file(file_to_download)  # Tải file đã chọn từ server
         else:
             print("Không có file nào được chọn.")
-    elif choice == "download":
-        # Lấy danh sách các file có sẵn từ server
-        files = list_files()
 
-        if files:
-            # Cho phép người dùng chọn file bằng giao diện đồ họa
-            file_to_download = askopenfilename(title="Chọn file để tải xuống", initialdir="server_data", filetypes=[("All files", "*.*")])
+download_button = Button(root, text="Download File", command=on_download_button_click)
+download_button.pack(pady=20)
 
-            if file_to_download:
-                # Chỉ lấy tên file, không cần đường dẫn đầy đủ
-                file_to_download = file_to_download.split("/")[-1]
-                download_file(file_to_download)  # Tải file đã chọn từ server
-            else:
-                print("Không có file nào được chọn.")
+# Nút Đóng kết nối
+def close_connection():
+    if client.fileno() != -1:  # Kiểm tra nếu socket vẫn còn hoạt động
+        send_message(DISCONNECT_MESSAGE)  # Gửi tin nhắn ngắt kết nối đến server
+        client.close()  # Đóng kết nối
+        print("Kết nối đã được đóng.")
     else:
-        print("Lựa chọn không hợp lệ.")
-        break
+        print("Kết nối đã bị đóng trước đó.")
+    root.quit()  # Đóng cửa sổ Tkinter sau khi ngắt kết nối
 
-# Đóng kết nối
-client.close()
+close_button = Button(root, text="Close Connection", command=close_connection)
+close_button.pack(pady=20)
+
+# Kết nối tới server
+if not connect_to_server():
+    root.quit()  # Nếu không kết nối được server thì đóng cửa sổ
+
+root.mainloop()
