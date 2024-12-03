@@ -11,6 +11,7 @@ FILE_LIST_REQUEST = "!LIST"
 FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
 REGISTER_REQUEST = "!REGISTER"
 LOGIN_REQUEST = "!LOGIN"
+FOLDER_TRANSFER_MESSAGE = "!FOLDER" # Yêu cầu tải folder
 
 SERVER = "192.168.222.234"  # Địa chỉ IP của server
 ADDR = (SERVER, PORT)
@@ -121,6 +122,49 @@ def list_files():
         print("Không có file nào trên server.")
         return []
 
+# Upload folder
+def send_folder(folder_path):
+    zip_name = os.path.basename(folder_path) + ".zip"
+    with zipfile.ZipFile(zip_name, 'w') as zipf:
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), folder_path))
+    send_message(f"{FOLDER_TRANSFER_MESSAGE} {zip_name}")
+    with open(zip_name, "rb") as f:
+        zip_data = f.read()
+        send_length = str(len(zip_data)).encode(FORMAT) + b' ' * (HEADER - len(str(len(zip_data)).encode(FORMAT)))
+        client.send(send_length)
+        client.sendall(zip_data)
+    os.remove(zip_name)
+
+# Download folder
+def download_folder(folder_name):
+    send_message(f"{FOLDER_DOWNLOAD_REQUEST} {folder_name}")
+    folder_name = client.recv(HEADER).decode(FORMAT).strip()
+    folder_size = int(client.recv(HEADER).decode(FORMAT).strip())
+
+    if not os.path.exists("client_data"):
+        os.makedirs("client_data") # Tạo thư mục client_data nếu chưa tồn tại
+    
+    folder_path = os.path.join("client_data", folder_name)
+    with open(folder_path + ".zip", "wb") as f:
+        while folder_size > 0:
+            data = client.recv(min(1024, folder_size))
+            f.write(data)
+            folder_size -= len(data)
+    print(f"Folder {folder_name} đã được tải xuống.")
+
+###
+def upload_folder():
+    folder_path = filedialog.askdirectory()
+    if folder_path:
+        send_folder(folder_path)
+        
+def download_folder_gui():
+    folder_name = filedialog.askdirectory()
+    if folder_name:
+        download_folder(folder_name)
+###
 
 # Giao diện Tkinter
 root = Tk()
