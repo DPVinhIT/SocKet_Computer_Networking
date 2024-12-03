@@ -1,49 +1,65 @@
 import socket
 import os
-from tkinter import Tk, Button, filedialog, Label
-
+from tkinter import Tk, Button, filedialog, Label, Entry, StringVar, messagebox
+import tkinter.simpledialog as simpledialog
 PORT = 8080
 HEADER = 64
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
-FILE_TRANSFER_MESSAGE = "!FILE"  # Thông báo gửi file
-FILE_LIST_REQUEST = "!LIST"  # Yêu cầu danh sách file từ server
-FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"  # Yêu cầu tải file từ server
+FILE_TRANSFER_MESSAGE = "!FILE"
+FILE_LIST_REQUEST = "!LIST"
+FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
+REGISTER_REQUEST = "!REGISTER"
+LOGIN_REQUEST = "!LOGIN"
 
-SERVER = "192.168.137.227"  # Địa chỉ IP của server
+SERVER = "192.168.222.234"  # Địa chỉ IP của server
 ADDR = (SERVER, PORT)
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+
 def connect_to_server():
     try:
-        client.connect(ADDR)  # Kết nối đến server
+        client.connect(ADDR)
         print("Kết nối đến server thành công.")
     except Exception as e:
         print(f"Không thể kết nối đến server: {e}")
         return False
     return True
 
-def send_message(msg):
-    """
-    Gửi một tin nhắn dạng text đến server
-    """
-    if client.fileno() == -1:  # Kiểm tra nếu socket đã bị đóng
-        print("Socket đã bị đóng, không thể gửi tin nhắn.")
-        return
 
+def send_message(msg):
     message = msg.encode(FORMAT)
     msg_length = len(message)
     send_length = str(msg_length).encode(FORMAT)
     send_length += b' ' * (HEADER - len(send_length))
-    client.send(send_length)  # Gửi độ dài tin nhắn
-    client.send(message)  # Gửi tin nhắn
+    client.send(send_length)
+    client.send(message)
+
+
+def receive_message():
+    return client.recv(2048).decode(FORMAT)
+
+
+def register(username, password):
+    send_message(f"{REGISTER_REQUEST} {username} {password}")
+    response = receive_message()
+    messagebox.showinfo("Register", response)
+
+
+def login(username, password):
+    send_message(f"{LOGIN_REQUEST} {username} {password}")
+    response = receive_message()
+    if "success" in response.lower():
+        messagebox.showinfo("Login", "Đăng nhập thành công!")
+        return True
+    else:
+        messagebox.showerror("Login", "Đăng nhập thất bại!")
+        return False
+
 
 def send_file(file_path):
-    """
-    Gửi một file đến server
-    """
-    send_message(f"{FILE_TRANSFER_MESSAGE} {file_path.split('/')[-1]}")
+    send_message(f"{FILE_TRANSFER_MESSAGE} {os.path.basename(file_path)}")
 
     with open(file_path, "rb") as file:
         file_data = file.read()
@@ -55,8 +71,9 @@ def send_file(file_path):
 
         client.send(file_data)
 
-    print(f"File {file_path.split('/')[-1]} đã được gửi.")
-    print(f"From server: {client.recv(2048).decode(FORMAT)}")
+    print(f"File {os.path.basename(file_path)} đã được gửi.")
+    messagebox.showinfo("Upload", f"File {os.path.basename(file_path)} đã được gửi.")
+
 
 def download_file(filename):
     """
@@ -89,6 +106,7 @@ def download_file(filename):
 
             print(f"File {file_name} đã được tải xuống thành công.")
 
+
 def list_files():
     """
     Yêu cầu server gửi danh sách các file có sẵn để tải xuống hoặc upload
@@ -104,9 +122,44 @@ def list_files():
         return []
 
 
-# Tạo giao diện Tkinter
+# Giao diện Tkinter
 root = Tk()
 root.title("File Upload/Download")
+username_var = StringVar()
+password_var = StringVar()
+
+
+def on_register_button_click():
+    username = username_var.get()
+    password = password_var.get()
+    if username and password:
+        register(username, password)
+    else:
+        messagebox.showerror("Error", "Vui lòng nhập đầy đủ thông tin.")
+
+
+def on_login_button_click():
+    username = username_var.get()
+    password = password_var.get()
+    if username and password:
+        if login(username, password):
+            show_file_buttons()
+    else:
+        messagebox.showerror("Error", "Vui lòng nhập đầy đủ thông tin.")
+
+
+def show_file_buttons():
+    upload_button.pack(pady=10)
+    download_button.pack(pady=10)
+    close_button.pack(pady=10)
+    login_button.pack_forget()
+    register_button.pack_forget()
+    username_label.pack_forget()
+    password_label.pack_forget()
+    username_entry.pack_forget()
+    password_entry.pack_forget()
+
+
 
 # Nút Upload
 def on_upload_button_click():
@@ -115,9 +168,6 @@ def on_upload_button_click():
         send_file(file_path)  # Gửi file đã chọn lên server
     else:
         print("Không có file nào được chọn.")
-
-upload_button = Button(root, text="Upload File", command=on_upload_button_click, bg="green", fg="white", font=("Arial", 12))
-upload_button.pack(pady=20)
 
 # Nút Download
 def on_download_button_click():
@@ -133,10 +183,6 @@ def on_download_button_click():
         else:
             print("Không có file nào được chọn.")
 
-download_button = Button(root, text="Download File", command=on_download_button_click, bg="blue", fg="white", font=("Arial", 12))
-download_button.pack(pady=20)
-
-# Nút Đóng kết nối
 def close_connection():
     if client.fileno() != -1:  # Kiểm tra nếu socket vẫn còn hoạt động
         send_message(DISCONNECT_MESSAGE)  # Gửi tin nhắn ngắt kết nối đến server
@@ -146,11 +192,32 @@ def close_connection():
         print("Kết nối đã bị đóng trước đó.")
     root.quit()  # Đóng cửa sổ Tkinter sau khi ngắt kết nối
 
-close_button = Button(root, text="Close Connection", command=close_connection, bg="red", fg="white", font=("Arial", 12))
-close_button.pack(pady=20)
 
-# Kết nối tới server
+# Giao diện Đăng nhập / Đăng ký
+username_label = Label(root, text="Username")
+username_label.pack()
+username_entry = Entry(root, textvariable=username_var)
+username_entry.pack()
+
+password_label = Label(root, text="Password")
+password_label.pack()
+password_entry = Entry(root, textvariable=password_var, show="*")
+password_entry.pack()
+
+login_button = Button(root, text="Login", command=on_login_button_click, bg="blue", fg="white", font=("Arial", 12))
+login_button.pack(pady=10)
+
+register_button = Button(root, text="Register", command=on_register_button_click, bg="green", fg="white", font=("Arial", 12))
+register_button.pack(pady=10)
+
+# Nút Upload và Download chỉ hiển thị khi đăng nhập thành công
+upload_button = Button(root, text="Upload File", command=on_upload_button_click, bg="green", fg="white", font=("Arial", 12))
+download_button = Button(root, text="Download File", command=on_download_button_click, bg="blue", fg="white", font=("Arial", 12))
+
+close_button = Button(root, text="Close Connection", command=close_connection, bg="red", fg="white", font=("Arial", 12))
+
+# Kết nối đến server
 if not connect_to_server():
-    root.quit()  # Nếu không kết nối được server thì đóng cửa sổ
+    root.quit()
 
 root.mainloop()
