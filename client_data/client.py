@@ -11,10 +11,9 @@ FILE_LIST_REQUEST = "!LIST"
 FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
 REGISTER_REQUEST = "!REGISTER"
 LOGIN_REQUEST = "!LOGIN"
-FOLDER_DOWNLOAD_REQUEST = "!FOLDER_DOWNLOAD"
-FOLDER_TRANSFER_MESSAGE = "!FOLDER" # Yêu cầu tải folder
 
-SERVER = "192.168.222.234"  # Địa chỉ IP của server
+#SERVER = "192.168.222.234"  # Địa chỉ IP của server
+SERVER = socket.gethostbyname(socket.gethostname()) #Lấy ip của máy vì chạy cùng 1 máy
 ADDR = (SERVER, PORT)
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -74,7 +73,8 @@ def send_file(file_path):
         client.send(file_data)
 
     print(f"File {os.path.basename(file_path)} đã được gửi.")
-    messagebox.showinfo("Upload", f"File {os.path.basename(file_path)} đã được gửi.")
+    messagebox.showinfo(
+        "Upload", f"File {os.path.basename(file_path)} đã được gửi.")
 
 
 def download_file(filename):
@@ -90,7 +90,8 @@ def download_file(filename):
     if file_name == "File not found.":
         print("File không tồn tại trên server.")
     else:
-        print(f"Đang tải xuống file: {file_name}, kích thước: {file_size} bytes")
+        print(f"Đang tải xuống file: {
+              file_name}, kích thước: {file_size} bytes")
 
         # Tạo thư mục client_data nếu chưa có
         if not os.path.exists('client_data'):
@@ -123,49 +124,6 @@ def list_files():
         print("Không có file nào trên server.")
         return []
 
-# Upload folder
-def send_folder(folder_path):
-    zip_name = os.path.basename(folder_path) + ".zip"
-    with zipfile.ZipFile(zip_name, 'w') as zipf:
-        for root, dirs, files in os.walk(folder_path):
-            for file in files:
-                zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), folder_path))
-    send_message(f"{FOLDER_TRANSFER_MESSAGE} {zip_name}")
-    with open(zip_name, "rb") as f:
-        zip_data = f.read()
-        send_length = str(len(zip_data)).encode(FORMAT) + b' ' * (HEADER - len(str(len(zip_data)).encode(FORMAT)))
-        client.send(send_length)
-        client.sendall(zip_data)
-    os.remove(zip_name)
-
-# Download folder
-def download_folder(folder_name):
-    send_message(f"{FOLDER_DOWNLOAD_REQUEST} {folder_name}")
-    folder_name = client.recv(HEADER).decode(FORMAT).strip()
-    folder_size = int(client.recv(HEADER).decode(FORMAT).strip())
-
-    if not os.path.exists("client_data"):
-        os.makedirs("client_data") # Tạo thư mục client_data nếu chưa tồn tại
-    
-    folder_path = os.path.join("client_data", folder_name)
-    with open(folder_path + ".zip", "wb") as f:
-        while folder_size > 0:
-            data = client.recv(min(1024, folder_size))
-            f.write(data)
-            folder_size -= len(data)
-    print(f"Folder {folder_name} đã được tải xuống.")
-
-###
-def upload_folder():
-    folder_path = filedialog.askdirectory()
-    if folder_path:
-        send_folder(folder_path)
-        
-def download_folder_gui():
-    folder_name = filedialog.askdirectory()
-    if folder_name:
-        download_folder(folder_name)
-###
 
 # Giao diện Tkinter
 root = Tk()
@@ -204,22 +162,37 @@ def show_file_buttons():
     username_entry.pack_forget()
     password_entry.pack_forget()
 
+# Trạng thái hiển thị của mật khẩu
 
+
+def show_hide_password():
+    if password_entry.cget("show") == "":  # Nếu đang hiển thị mật khẩu
+        password_entry.config(show="*")   # Ẩn mật khẩu
+        show_hide_password_button.config(text="Show")  # Đổi chữ trên nút
+    else:
+        password_entry.config(show="")    # Hiển thị mật khẩu
+        show_hide_password_button.config(text="Hide")   # Đổi chữ trên nút
 
 # Nút Upload
+
+
 def on_upload_button_click():
-    file_path = filedialog.askopenfilename(title="Chọn file để gửi")  # Chọn file từ máy tính
+    file_path = filedialog.askopenfilename(
+        title="Chọn file để gửi")  # Chọn file từ máy tính
     if file_path:
         send_file(file_path)  # Gửi file đã chọn lên server
     else:
         print("Không có file nào được chọn.")
 
 # Nút Download
+
+
 def on_download_button_click():
     files = list_files()  # Lấy danh sách các file có sẵn từ server
     if files:
         # Cho phép người dùng chọn file bằng giao diện đồ họa
-        file_to_download = filedialog.askopenfilename(title="Chọn file để tải xuống", initialdir="server_data", filetypes=[("All files", "*.*")])
+        file_to_download = filedialog.askopenfilename(
+            title="Chọn file để tải xuống", initialdir="server_data", filetypes=[("All files", "*.*")])
 
         if file_to_download:
             # Chỉ lấy tên file, không cần đường dẫn đầy đủ
@@ -228,9 +201,11 @@ def on_download_button_click():
         else:
             print("Không có file nào được chọn.")
 
+
 def close_connection():
     if client.fileno() != -1:  # Kiểm tra nếu socket vẫn còn hoạt động
-        send_message(DISCONNECT_MESSAGE)  # Gửi tin nhắn ngắt kết nối đến server
+        # Gửi tin nhắn ngắt kết nối đến server
+        send_message(DISCONNECT_MESSAGE)
         client.close()  # Đóng kết nối
         print("Kết nối đã được đóng.")
     else:
@@ -240,26 +215,34 @@ def close_connection():
 
 # Giao diện Đăng nhập / Đăng ký
 username_label = Label(root, text="Username")
-username_label.pack()
+username_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
 username_entry = Entry(root, textvariable=username_var)
-username_entry.pack()
+username_entry.grid(row=0, column=1)
 
 password_label = Label(root, text="Password")
-password_label.pack()
+password_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
 password_entry = Entry(root, textvariable=password_var, show="*")
-password_entry.pack()
+password_entry.grid(row=1, column=1)
 
-login_button = Button(root, text="Login", command=on_login_button_click, bg="blue", fg="white", font=("Arial", 12))
-login_button.pack(pady=10)
+show_hide_password_button = Button(root, text="Show", command=show_hide_password)
+show_hide_password_button.grid(row=1, column=2, padx=5)
 
-register_button = Button(root, text="Register", command=on_register_button_click, bg="green", fg="white", font=("Arial", 12))
-register_button.pack(pady=10)
+login_button = Button(root, text="Login", command=on_login_button_click,
+                      bg="blue", fg="white", font=("Arial", 12))
+login_button.grid(row=2, column=0, padx=5, pady=5)
+
+register_button = Button(root, text="Register", command=on_register_button_click,
+                         bg="green", fg="white", font=("Arial", 12))
+register_button.grid(row=3, column=0, padx=5, pady=5)
 
 # Nút Upload và Download chỉ hiển thị khi đăng nhập thành công
-upload_button = Button(root, text="Upload File", command=on_upload_button_click, bg="green", fg="white", font=("Arial", 12))
-download_button = Button(root, text="Download File", command=on_download_button_click, bg="blue", fg="white", font=("Arial", 12))
+upload_button = Button(root, text="Upload File", command=on_upload_button_click,
+                       bg="green", fg="white", font=("Arial", 12))
+download_button = Button(root, text="Download File",
+                         command=on_download_button_click, bg="blue", fg="white", font=("Arial", 12))
 
-close_button = Button(root, text="Close Connection", command=close_connection, bg="red", fg="white", font=("Arial", 12))
+close_button = Button(root, text="Close Connection",
+                      command=close_connection, bg="red", fg="white", font=("Arial", 12))
 
 # Kết nối đến server
 if not connect_to_server():
