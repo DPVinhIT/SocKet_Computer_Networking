@@ -81,35 +81,51 @@ def send_file(file_path):
 
 def download_file(filename):
     """
-    Yêu cầu server gửi file về client
+    Yêu cầu server gửi file về client, chỉ cho phép tải file từ thư mục PUBLIC
     """
     send_message(f"{FILE_DOWNLOAD_REQUEST} {filename}")
 
-    # Nhận tên file và kích thước file từ server
-    file_name = client.recv(HEADER).decode(FORMAT)
+    # Nhận phản hồi đầu tiên từ server (tên file hoặc thông báo lỗi)
+    response = client.recv(HEADER).decode(FORMAT)
+
+    # Kiểm tra nếu server trả về thông báo lỗi
+    if response == "File not found.":
+        print("Bạn Không được tải file này! ")
+        print("Nguyên nhân do bảo mật hoặc file không tồn tại")
+        return
+
+    # Nếu nhận được tên file hợp lệ, tiếp tục nhận kích thước file
+    file_name = response
     file_size = int(client.recv(HEADER).decode(FORMAT))
 
-    if file_name == "File not found.":
-        print("File không tồn tại trên server.")
-    else:
-        print(f"Đang tải xuống file: {
-              file_name}, kích thước: {file_size} bytes")
+    print(f"Đang tải xuống file: {file_name}, kích thước: {file_size} bytes")
 
-        # Tạo thư mục client_data nếu chưa có
-        if not os.path.exists('client_data'):
-            os.makedirs('client_data')
+    # Tạo thư mục client_data nếu chưa có
+    if not os.path.exists('client_data'):
+        os.makedirs('client_data')
 
-        # Mở file và bắt đầu tải xuống
-        with open(f"client_data/{file_name}", "wb") as file:
-            total_received = 0
+    # Mở file và bắt đầu tải xuống
+    with open(f"client_data/{file_name}", "wb") as file:
+        total_received = 0
+        try:
             while total_received < file_size:
                 file_data = client.recv(1024)
+                if not file_data:
+                    break
                 total_received += len(file_data)
                 file.write(file_data)
+
                 # Hiển thị tiến trình tải xuống (tuỳ chọn)
                 print(f"Đã nhận {total_received} / {file_size} bytes")
 
-            print(f"File {file_name} đã được tải xuống thành công.")
+            if total_received == file_size:
+                print(f"File {file_name} đã được tải xuống thành công.")
+            else:
+                print(f"Lỗi: Chỉ nhận được {total_received} / {file_size} bytes.")
+
+        except Exception as e:
+            print(f"Lỗi khi tải file: {e}")
+
 
 
 def list_files():
@@ -154,15 +170,18 @@ def on_login_button_click():
 
 
 def show_file_buttons():
-    upload_button.pack(pady=10)
-    download_button.pack(pady=10)
-    close_button.pack(pady=10)
-    login_button.pack_forget()
-    register_button.pack_forget()
-    username_label.pack_forget()
-    password_label.pack_forget()
-    username_entry.pack_forget()
-    password_entry.pack_forget()
+    upload_button.grid(row=0, column=0, pady=10)
+    download_button.grid(row=1, column=0, pady=10)
+    close_button.grid(row=2, column=0, pady=10)
+    
+    # Ẩn các widget không cần thiết khi hiển thị file buttons
+    login_button.grid_forget()
+    register_button.grid_forget()
+    username_label.grid_forget()
+    password_label.grid_forget()
+    username_entry.grid_forget()
+    password_entry.grid_forget()
+
 
 # Trạng thái hiển thị của mật khẩu
 
