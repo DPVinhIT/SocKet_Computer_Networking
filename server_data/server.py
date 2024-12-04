@@ -36,6 +36,12 @@ logging.basicConfig(
 folder_path = "server_data"
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)
+public_folder = os.path.join(folder_path, "PUBLIC")
+private_folder = os.path.join(folder_path, "PRIVATE")
+if not os.path.exists(public_folder):
+    os.makedirs(public_folder)
+if not os.path.exists(private_folder):
+    os.makedirs(private_folder)
 
 connected_clients = 0  # Biến đếm số lượng kết nối
 def send_file_to_client(client_socket, filename):
@@ -120,7 +126,7 @@ def handle_client(conn, addr, root):
     
     connected_clients += 1
     print(f"[ACTIVE CONNECTIONS] {connected_clients} active connections.")
-    logging.info(f"Connect from client {addr[0]}:{addr[1]}")
+    logging.info(f"Connect from client {addr}")
 
     logged_in = False  # Trạng thái chưa đăng nhập
 
@@ -162,12 +168,21 @@ def handle_client(conn, addr, root):
                 else:
                     # Xử lý các yêu cầu sau khi đã đăng nhập
                     if msg.startswith(FILE_LIST_REQUEST):
-                        public_folder = os.path.join(folder_path, "PUBLIC")  # Chỉ truy cập thư mục PUBLIC
+                         # Chỉ truy cập thư mục PUBLIC
                         files = os.listdir(public_folder)
                         files_list = "\n".join(files) if files else "No files available."
                         conn.send(files_list.encode(FORMAT))
-                        logging.info(FILE_LIST_REQUEST + f" from client {addr[0]}:{addr[1]}")
-
+                        logging.info(FILE_LIST_REQUEST + f" from client {addr}")
+                    # Upload file
+                    elif msg.startswith(FILE_TRANSFER_MESSAGE):
+                        filename=msg.split(" ",1)[1]
+                        file_length = int(conn.recv(HEADER).decode(FORMAT)) 
+                        file_data = conn.recv(file_length)
+                        file_path = os.path.join(public_folder,filename)
+                        with open(file_path, "wb") as f:
+                            f.write(file_data)
+                        logging.info(f"Upload Successful: \"{filename}\" from client {addr}")
+                    # Download file
                     elif msg.startswith(FILE_DOWNLOAD_REQUEST):
                         filename = msg.split(" ", 1)[1]
                         # Xác định đường dẫn tuyệt đối của file trong thư mục PUBLIC
@@ -190,15 +205,15 @@ def handle_client(conn, addr, root):
                                         if not file_data:
                                             break
                                         conn.send(file_data)
-                                logging.info(f"Download Successful: {filename} from client {addr}")
+                                logging.info(f"Download Successful: \"{filename}\" from client {addr}")
                             else:
                                 conn.send("File not found.".encode(FORMAT))
-                                logging.error(f"Download Unsuccessful: {filename} from client {addr}")
+                                logging.error(f"Download Unsuccessful: \"{filename}\" from client {addr}")
                         else:
                         # Nếu file yêu cầu nằm ngoài thư mục PUBLIC (tức là trong PRIVATE hoặc thư mục khác)
                             if os.path.commonpath([file_path, private_folder_path]) == private_folder_path:
                                 conn.send("File not found.".encode(FORMAT))
-                                logging.warning(f"Download Unsuccessful: {filename} from client {addr}")
+                                logging.warning(f"Download Unsuccessful: \"{filename}\" from client {addr}")
 
                     else:
                         conn.send("Invalid command.".encode(FORMAT))
@@ -206,7 +221,7 @@ def handle_client(conn, addr, root):
     finally:
         conn.close()
         connected_clients -= 1
-        logging.info(f"!!Disconnect from client {addr[0]}:{addr[1]}")
+        logging.info(f"!!Disconnect from client {addr}")
         print(f"[ACTIVE CONNECTIONS] {connected_clients} active connections.")
 
 
