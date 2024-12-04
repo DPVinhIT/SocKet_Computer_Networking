@@ -64,16 +64,17 @@ def login(username, password):
 
 def send_file(file_path):
     send_message(f"{FILE_TRANSFER_MESSAGE} {file_path.split('/')[-1]}")
-
+    file_length = os.path.getsize(file_path)
     with open(file_path, "rb") as file:
-        file_data = file.read()
-        file_length = len(file_data)
 
         send_length = str(file_length).encode(FORMAT)
         send_length += b' ' * (HEADER - len(send_length))
         client.send(send_length)
-
-        client.send(file_data)
+        while True: 
+            file_data = file.read(1024)
+            if not file_data:
+                break
+            client.send(file_data)
 
     print(f"File {os.path.basename(file_path)} đã được gửi.")
     messagebox.showinfo(
