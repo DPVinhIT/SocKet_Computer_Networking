@@ -177,10 +177,15 @@ def handle_client(conn, addr, root):
                     elif msg.startswith(FILE_TRANSFER_MESSAGE):
                         filename=msg.split(" ",1)[1]
                         file_length = int(conn.recv(HEADER).decode(FORMAT)) 
-                        file_data = conn.recv(file_length)
                         file_path = os.path.join(public_folder,filename)
-                        with open(file_path, "wb") as f:
-                            f.write(file_data)
+                        total_received = 0
+                        with open(file_path, "wb") as file:
+                            while(total_received<file_length):
+                                file_data = conn.recv(1024)
+                                if not file_data:
+                                    break
+                                total_received+=len(file_data)
+                                file.write(file_data)
                         logging.info(f"Upload Successful: \"{filename}\" from client {addr}")
                     # Download file
                     elif msg.startswith(FILE_DOWNLOAD_REQUEST):
