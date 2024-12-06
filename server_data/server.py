@@ -3,6 +3,7 @@ import socket
 import threading
 import os
 from tkinter import Tk
+from tkinter import*
 from tkinter import messagebox
 from openpyxl import Workbook, load_workbook
 import zipfile
@@ -18,6 +19,8 @@ FILE_LIST_REQUEST = "!LIST"
 FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
 SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
+
+all_connections = []
 
 #Socket của server
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -44,6 +47,7 @@ if not os.path.exists(private_folder):
     os.makedirs(private_folder)
 
 connected_clients = 0  # Biến đếm số lượng kết nối
+
 def send_file_to_client(client_socket, filename):
     try:
         # Kiểm tra nếu file tồn tại
@@ -120,7 +124,7 @@ def login(username, password):
 
 import os
 
-def handle_client(conn, addr, root):
+def handle_client(conn, addr):
     global connected_clients
     print(f"[NEW CONNECTION] {addr} connected.")
     
@@ -224,14 +228,11 @@ def handle_client(conn, addr, root):
                         conn.send("Invalid command.".encode(FORMAT))
 
     finally:
+        all_connections.remove(conn)
         conn.close()
         connected_clients -= 1
         logging.info(f"!!Disconnect from client {addr}")
         print(f"[ACTIVE CONNECTIONS] {connected_clients} active connections.")
-
-
-
-
 
 
 # def handle_client(conn, addr):
@@ -308,21 +309,85 @@ def handle_client(conn, addr, root):
 #         #     print("[INFO] No active connections. Closing the window.")
 #         #     root.quit()
 
-
-def start():
-    server.listen()
-    print(f"[LISTENING] Server is listening on {SERVER}")
-    logging.info("Server Start!!") #Ghi vào file log
-    # Khởi tạo cửa sổ Tkinter
-    root = Tk()
-    root.title("Server Interface")
-    
+def server_listen():
     while True:
         conn, addr = server.accept()
-        thread = threading.Thread(target=handle_client, args=(conn, addr, root))
+        all_connections.append(conn)
+        thread = threading.Thread(target=handle_client, args=(conn, addr))
+        thread.daemon =True
         thread.start()
 
-    root.mainloop()  # Bắt đầu vòng lặp giao diện
+        
+def send_message(chat_box,entry_text):
+    chat_box.config(state="normal")
+    msg = entry_text.get(1.0,END).strip() #strip để không lấy khoảng trống thừa 
+    entry_text.delete(1.0,END)
+    if msg:
+        chat_box.insert(END, "Server: " + msg + '\n')
+    chat_box.config(state="disabled") 
 
+def clear_text_box(chat_box):
+    chat_box.config(state="normal")
+    chat_box.delete(1.0, END)
+    chat_box.config(state="disabled")
+
+def history_log():
+    pass
+
+def list_all_connecting():
+    chat_box.config(state="normal")
+    if not all_connections:
+        print("Không có kết nối")
+    else: 
+        chat_box.insert(END,"Tất cả các kết nối là:\n")
+        for conn in all_connections:
+            try:
+                addr=conn.getpeername()
+                chat_box.insert(END,f"Client {addr} đang kết nối")
+            except Exception as e:
+                chat_box.insert(END,f"Lỗi khi lấy thông tin kết nối: {e}")
+    chat_box.config(state="disabled")
+
+       
+def closing_window():
+    if messagebox.askokcancel("Thoát", "Bạn có muốn ngắt kết nối ??"):
+        try: 
+            if server.fileno() != -1: 
+                server.close()
+        finally:
+            root.destroy()
+    os._exit(0)
+
+    
+    
 print("[STARTING] Server is starting...")
-start()
+server.listen()
+print(f"[LISTENING] Server is listening on {SERVER}")
+logging.info("Server Start!!") #Ghi vào file log
+# Khởi tạo cửa sổ Tkinter
+global root
+root = Tk()
+root.title("Server Interface")
+root.geometry("500x500")
+
+root.protocol("WM_DELETE_WINDOW", closing_window)
+# Xử lý dữ liệu  
+handle_server = threading.Thread(target=server_listen)
+handle_server.daemon = True # Dừng Thread khi đóng giao diện
+handle_server.start()
+
+# Xử lí giao diện
+
+chat_box = Text(root, bg="light yellow",height = 15,width=50,state="disabled")
+chat_box.grid(row=0, column=0, columnspan=10, padx=10, pady=10)
+
+button_clear_text_box = Button(root, text="Clear all text", command=lambda: clear_text_box(chat_box))
+button_clear_text_box.grid(row=2, column=0, padx=10, pady=10)
+
+button_all_connected = Button(root, text="ALL connected", command=list_all_connecting)
+button_all_connected.grid(row=3, column=0, padx=10, pady=10)
+
+button_history_log = Button(root, text="History log", command=history_log)
+button_history_log.grid(row=4, column=0, padx=10, pady=10)
+
+root.mainloop() 
