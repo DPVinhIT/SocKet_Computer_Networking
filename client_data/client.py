@@ -3,7 +3,9 @@ import threading
 import os
 import zipfile
 import time
-from tkinter import Tk, Button, filedialog, Label, Entry, StringVar, messagebox, ttk, Toplevel
+# from tkinter import Tk, Button, filedialog, Label, Entry, StringVar, messagebox, ttk, Toplevel
+from tkinter import*
+from tkinter import ttk, Toplevel, messagebox, filedialog
 import tkinter.simpledialog as simpledialog
 PORT = 8080
 HEADER = 64
@@ -80,8 +82,39 @@ def send_file(file_path):
     messagebox.showinfo(
         "Upload", f"File {os.path.basename(file_path)} đã được gửi.")
 
+def create_download_file_window(root,list_file):
+    global download_window
+    download_window = Toplevel(root)
+    download_window.title("Download file")
+    
+    list_label_filename = []
+    list_progress = []
+    list_percent = []
+    list_pause = []
+    list_cancel = []
+    
+    index_row = 0
+    
+    for file in list_file:
+        list_label = Label(download_window,text=f"Đang tải file: \"{file}\"").grid(row=index_row,column=0)
+        list_label_filename.append(list_label)
+        
+        index_row += 1
+        
+        progress = ttk.Progressbar(download_window,length=250,mode="determinate",).grid(row=index_row,column=0)
+        list_progress.append(progress)
+        
+        percent = Label(download_window,text="0%", font=("Arial", 10)).grid(row=index_row,column=0,padx=1)
+        list_percent.append(percent)
+        
+def update_progress(progress,percent,index,value,maximum):
+    pass
+        
+def handle_download(file_size):
+    pass
+        
 
-def download_file(filename):
+def download_file(filename): 
     """
     Yêu cầu server gửi file về client, chỉ cho phép tải file từ thư mục PUBLIC
     """
@@ -111,16 +144,16 @@ def download_file(filename):
         total_received = 0
         
         download_button.config(state="disabled")
-        download_window = Toplevel(root)
-        download_window.title(f"Download file: \"{file_name}\"")
+        download_window1 = Toplevel(root)
+        download_window1.title(f"Download file: \"{file_name}\"")
         
-        download_label = Label(download_window, text=f"Đang tải xuống \"{file_name}\"...")
+        download_label = Label(download_window1, text=f"Đang tải xuống \"{file_name}\"...")
         download_label.pack(padx = 10, pady = 10)
         
-        download_percent = Label(download_window,text="")
+        download_percent = Label(download_window1,text="")
         download_percent.pack(padx = 10, pady = 10)
         
-        progress = ttk.Progressbar(download_window,orient="horizontal",length=350, mode="determinate")
+        progress = ttk.Progressbar(download_window1,orient="horizontal",length=350, mode="determinate")
         progress.pack(padx = 10, pady = 10)
         progress["maximum"] = file_size
         try:
@@ -132,7 +165,7 @@ def download_file(filename):
                 file.write(file_data)
                 progress["value"] = total_received
                 download_percent.config(text=f"{round((progress["value"] / progress['maximum']) * 100, 2)} %")
-                download_window.update()
+                download_window1.update()
 
             if total_received == file_size:
                 download_label.config(text = f"File \"{file_name}\" đã được tải xuống thành công.")
@@ -160,15 +193,6 @@ def list_files():
         print("Không có file nào trên server.")
         return []
 
-
-# Giao diện Tkinter
-root = Tk()
-root.title("File Upload/Download")
-root.geometry("400x400")
-
-username_var = StringVar()
-password_var = StringVar()
-
 def on_register_button_click():
     username = username_var.get()
     password = password_var.get()
@@ -189,34 +213,38 @@ def on_login_button_click():
 
 
 def show_file_buttons():
+    file_window =  Toplevel(root)
+    file_window.title("Dowload\\Upload File")
+    file_window.geometry("400x250")
+    
+    global download_button
+    global upload_button
+    
+    # Nút Upload và Download chỉ hiển thị khi đăng nhập thành công
+    upload_button = Button(file_window, text="Upload File", command=on_upload_button_click,
+    bg="green", fg="white", font=("Arial", 12))
+    
+    download_button = Button(file_window, text="Download File",
+    command=on_download_button_click, bg="blue", fg="white", font=("Arial", 12))
+    
+    close_button = Button(file_window, text="Close Connection",
+                      command=close_connection, bg="red", fg="white", font=("Arial", 12))
     upload_button.grid(row=0, column=0, pady=10)
     download_button.grid(row=1, column=0, pady=10)
     close_button.grid(row=2, column=0, pady=10)
     
     # Ẩn các widget không cần thiết khi hiển thị file buttons
-    login_button.grid_forget()
-    register_button.grid_forget()
-    username_label.grid_forget()
-    password_label.grid_forget()
     username_entry.grid_forget()
     password_entry.grid_forget()
-    show_hide_password_button.grid_forget()
-
 
 # Trạng thái hiển thị của mật khẩu
-
-
 def show_hide_password():
-    if password_entry.cget("show") == "":  # Nếu đang hiển thị mật khẩu
-        password_entry.config(show="*")   # Ẩn mật khẩu
-        show_hide_password_button.config(text="Show")  # Đổi chữ trên nút
+    if show_password_var.get():  # Nếu checkbox được tích
+        password_entry.config(show='')  # Hiển thị mật khẩu
     else:
-        password_entry.config(show="")    # Hiển thị mật khẩu
-        show_hide_password_button.config(text="Hide")   # Đổi chữ trên nút
+        password_entry.config(show='*')  # Ẩn mật khẩu
 
 # Nút Upload
-
-
 def on_upload_button_click():
     file_path = filedialog.askopenfilename(
         title="Chọn file để gửi")  # Chọn file từ máy tính
@@ -226,8 +254,6 @@ def on_upload_button_click():
         print("Không có file nào được chọn.")
 
 # Nút Download
-
-
 def on_download_button_click():
     files = list_files()  # Lấy danh sách các file có sẵn từ server
     if files:
@@ -242,7 +268,7 @@ def on_download_button_click():
         else:
             print("Không có file nào được chọn.")
 
-
+#Dừng kết nối 
 def close_connection():
     if client.fileno() != -1:  # Kiểm tra nếu socket vẫn còn hoạt động
         # Gửi tin nhắn ngắt kết nối đến server
@@ -256,42 +282,77 @@ def close_connection():
 def closing_window():
     # Hiển thị hộp thoại xác nhận 
     if messagebox.askokcancel("Thoát", "Bạn có muốn ngắt kết nối ??"):
-        send_message(DISCONNECT_MESSAGE)
-        client.close()  # Đóng kết nối
+        close_connection()
         root.destroy()  # Đóng cửa sổ
 
+# Giao diện Tkinter
+root = Tk()
+root.title("File Upload/Download")
+root.geometry("925x500+300+200")
+root.configure(bg="#fff")
+root.resizable(False,False)
+
+username_var = StringVar()
+password_var = StringVar()
+
+img= PhotoImage(file = 'login.png')
+image_login= Label(root,image=img,bg='white').place(x=50,y=50)
+
+frame = Frame(root,width=350,height=350, bg='white')
+frame.place(x=480,y=70)
+
+heading = Label(frame,text='Sign in',fg='#57a1f8',bg='white',font=('Microsoft YaHei UI Light',23,'bold'))
+heading.place(x=100,y=5)
+
+# Nút tắt root
 root.protocol("WM_DELETE_WINDOW", closing_window)
 
 # Giao diện Đăng nhập / Đăng ký
-username_label = Label(root, text="Username")
-username_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
-username_entry = Entry(root, textvariable=username_var)
-username_entry.grid(row=0, column=1)
+def on_enter_user(event):
+    username_entry.delete(0,END)
+def on_leave_user(event):
+    name = username_entry.get()
+    if name=='':
+        username_entry.insert(0,'Username')
 
-password_label = Label(root, text="Password")
-password_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
-password_entry = Entry(root, textvariable=password_var, show="*")
-password_entry.grid(row=1, column=1)
+username_entry = Entry(frame, textvariable=username_var,width=25,fg='black',border=0,bg='white',font=('Microsoft YaHei UI Light',11))
+username_entry.place(x=30,y=80)
+username_entry.insert(0,'Username')
+username_entry.bind('<FocusIn>',on_enter_user)
+username_entry.bind('<FocusOut>',on_leave_user)
 
-show_hide_password_button = Button(root, text="Show", command=show_hide_password)
-show_hide_password_button.grid(row=1, column=2, padx=5)
+Frame(frame,width=295,height=2,bg='black').place(x=25,y=107)
 
-login_button = Button(root, text="Login", command=on_login_button_click,
-                      bg="blue", fg="white", font=("Arial", 12))
-login_button.grid(row=2, column=0, padx=5, pady=5)
+def on_enter_pass(event):
+    password_entry.delete(0,END)
+    password_entry.config(show="*")
+def on_leave_pass(event):
+    password = password_entry.get()
+    if password=='':
+        password_entry.insert(0,'Password')
 
-register_button = Button(root, text="Register", command=on_register_button_click,
-                         bg="green", fg="white", font=("Arial", 12))
-register_button.grid(row=3, column=0, padx=5, pady=5)
+password_entry = Entry(frame, textvariable=password_var,border=0,bg='white',font=('Microsoft YaHei UI Light',11))
+password_entry.place(x=30,y=150)
+password_entry.insert(0,'Password')
+password_entry.bind('<FocusIn>',on_enter_pass)
+password_entry.bind('<FocusOut>',on_leave_pass)
 
-# Nút Upload và Download chỉ hiển thị khi đăng nhập thành công
-upload_button = Button(root, text="Upload File", command=on_upload_button_click,
-                       bg="green", fg="white", font=("Arial", 12))
-download_button = Button(root, text="Download File",
-                         command=on_download_button_click, bg="blue", fg="white", font=("Arial", 12))
+Frame(frame,width=295,height=2,bg='black').place(x=25,y=177)
 
-close_button = Button(root, text="Close Connection",
-                      command=close_connection, bg="red", fg="white", font=("Arial", 12))
+Button(frame,text='Sign in',command=on_login_button_click,width=39,pady=7,bg='#57a1f8',fg='white',border=0).place(x=35,y=220)
+Label(frame,text="Don't have an account?",fg='black',bg='white',font=('Microsoft YaHei UI Light',9)).place(x=75,y=270)
+
+sign_up = Button(frame,text='Sign up',command=on_register_button_click,width=6,border=0,bg='white',cursor='hand2',fg='#57a1f8')
+sign_up.place(x=215,y=270)
+
+show_password_var = IntVar()  # Biến lưu trạng thái của checkbox (1 = tích, 0 = không tích)
+show_password = Checkbutton(frame, variable=show_password_var, 
+    onvalue=1,offvalue=0, command=show_hide_password,
+    bg='white',fg='black',border=0
+)
+show_password.place(x=30, y=190)
+
+Label(frame,text="Show password",fg='black',bg='white',font=('Microsoft YaHei UI Light',9)).place(x=50, y=190)
 
 # Kết nối đến server
 if not connect_to_server():
