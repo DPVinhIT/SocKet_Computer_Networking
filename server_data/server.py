@@ -122,177 +122,177 @@ def login(username, password):
             return True
     print("Đăng nhập thất bại!")
 ########Thay doi#################
-def zip_folder(folder_path, output_path):
-    """Nén thư mục thành file zip."""
-    with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk(folder_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                arcname = os.path.relpath(file_path, folder_path)
-                zipf.write(file_path, arcname)
+# def zip_folder(folder_path, output_path):
+#     """Nén thư mục thành file zip."""
+#     with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+#         for root, dirs, files in os.walk(folder_path):
+#             for file in files:
+#                 file_path = os.path.join(root, file)
+#                 arcname = os.path.relpath(file_path, folder_path)
+#                 zipf.write(file_path, arcname)
 
-def send_file(connection, filename):
-    """Gửi file qua socket."""
-    # Gửi tên file
-    connection.send(os.path.basename(filename).encode(FORMAT))
-    time.sleep(0.1)  # Đợi client xử lý
+# def send_file(connection, filename):
+#     """Gửi file qua socket."""
+#     # Gửi tên file
+#     connection.send(os.path.basename(filename).encode(FORMAT))
+#     time.sleep(0.1)  # Đợi client xử lý
 
-    # Gửi kích thước file
-    filesize = os.path.getsize(filename)
-    connection.send(str(filesize).encode(FORMAT))
-    time.sleep(0.1)
+#     # Gửi kích thước file
+#     filesize = os.path.getsize(filename)
+#     connection.send(str(filesize).encode(FORMAT))
+#     time.sleep(0.1)
 
-    # Gửi nội dung file
-    with open(filename, 'rb') as f:
-        while True:
-            data = f.read(1024)
-            if not data:
-                break
-            connection.send(data)
+#     # Gửi nội dung file
+#     with open(filename, 'rb') as f:
+#         while True:
+#             data = f.read(1024)
+#             if not data:
+#                 break
+#             connection.send(data)
 
-def handle_folder_download(msg, conn):
-    """Xử lý yêu cầu tải thư mục."""
-    parts = msg.split(" ", 1)  # Tách lệnh và đường dẫn
-    if len(parts) < 2 or not parts[1].strip():
-        conn.send("ERROR: Invalid folder download command.".encode(FORMAT))
-        print("[SERVER] Lệnh tải thư mục không hợp lệ.")
-        return
+# def handle_folder_download(msg, conn):
+#     """Xử lý yêu cầu tải thư mục."""
+#     parts = msg.split(" ", 1)  # Tách lệnh và đường dẫn
+#     if len(parts) < 2 or not parts[1].strip():
+#         conn.send("ERROR: Invalid folder download command.".encode(FORMAT))
+#         print("[SERVER] Lệnh tải thư mục không hợp lệ.")
+#         return
 
-    # Chỉ lấy tên thư mục
-    folder_to_send = parts[1].strip()
-    folder_path = os.path.abspath(os.path.join("PUBLIC", folder_to_send))  # Thư mục PUBLIC
-    if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
-        conn.send("ERROR: Folder không tồn tại.".encode(FORMAT))
-        print("[SERVER] Thư mục không tồn tại.")
-        return
+#     # Chỉ lấy tên thư mục
+#     folder_to_send = parts[1].strip()
+#     folder_path = os.path.abspath(os.path.join("PUBLIC", folder_to_send))  # Thư mục PUBLIC
+#     if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
+#         conn.send("ERROR: Folder không tồn tại.".encode(FORMAT))
+#         print("[SERVER] Thư mục không tồn tại.")
+#         return
 
-    print(f"[SERVER] Yêu cầu tải thư mục: {folder_to_send}")
-    try:
-        zip_file = f"{folder_to_send}.zip"
-        zip_folder(folder_path, zip_file)  # Nén thư mục
+#     print(f"[SERVER] Yêu cầu tải thư mục: {folder_to_send}")
+#     try:
+#         zip_file = f"{folder_to_send}.zip"
+#         zip_folder(folder_path, zip_file)  # Nén thư mục
 
-        # Gửi file zip đến client
-        send_file(conn, zip_file)
-        print("[SERVER] Đã gửi file zip thành công.")
-    except Exception as e:
-        print(f"Lỗi: {e}")
-        conn.send(f"ERROR: Có lỗi xảy ra khi xử lý thư mục. {str(e)}".encode(FORMAT))
-    finally:
-        # Dọn dẹp file zip tạm thời
-        if os.path.exists(zip_file):
-            os.remove(zip_file)
+#         # Gửi file zip đến client
+#         send_file(conn, zip_file)
+#         print("[SERVER] Đã gửi file zip thành công.")
+#     except Exception as e:
+#         print(f"Lỗi: {e}")
+#         conn.send(f"ERROR: Có lỗi xảy ra khi xử lý thư mục. {str(e)}".encode(FORMAT))
+#     finally:
+#         # Dọn dẹp file zip tạm thời
+#         if os.path.exists(zip_file):
+#             os.remove(zip_file)
 
-def handle_client(conn, addr, root):
-    global connected_clients
-    print(f"[NEW CONNECTION] {addr} connected.")
+# def handle_client(conn, addr, root):
+#     global connected_clients
+#     print(f"[NEW CONNECTION] {addr} connected.")
     
-    connected_clients += 1
-    print(f"[ACTIVE CONNECTIONS] {connected_clients} active connections.")
-    logging.info(f"Connect from client {addr}")
+#     connected_clients += 1
+#     print(f"[ACTIVE CONNECTIONS] {connected_clients} active connections.")
+#     logging.info(f"Connect from client {addr}")
 
-    logged_in = False  # Trạng thái chưa đăng nhập
+#     logged_in = False  # Trạng thái chưa đăng nhập
 
-    try:
-        while True:
-            msg_length = conn.recv(HEADER).decode(FORMAT)
-            if msg_length:
-                msg_length = int(msg_length)
-                msg = conn.recv(msg_length).decode(FORMAT)
+#     try:
+#         while True:
+#             msg_length = conn.recv(HEADER).decode(FORMAT)
+#             if msg_length:
+#                 msg_length = int(msg_length)
+#                 msg = conn.recv(msg_length).decode(FORMAT)
 
-                if msg == DISCONNECT_MESSAGE:
-                    break
+#                 if msg == DISCONNECT_MESSAGE:
+#                     break
 
-                # Nếu chưa đăng nhập
-                if not logged_in:
-                    if msg.startswith("!REGISTER"):
-                        try:
-                            _, username, password = msg.split(" ", 2)
-                            if register(username, password):
-                                conn.send("Registration successful.".encode(FORMAT))
-                            else:
-                                conn.send("Registration failed. Username already exists.".encode(FORMAT))
-                        except ValueError:
-                            conn.send("Invalid format. Use: !REGISTER <username> <password>".encode(FORMAT))
+#                 # Nếu chưa đăng nhập
+#                 if not logged_in:
+#                     if msg.startswith("!REGISTER"):
+#                         try:
+#                             _, username, password = msg.split(" ", 2)
+#                             if register(username, password):
+#                                 conn.send("Registration successful.".encode(FORMAT))
+#                             else:
+#                                 conn.send("Registration failed. Username already exists.".encode(FORMAT))
+#                         except ValueError:
+#                             conn.send("Invalid format. Use: !REGISTER <username> <password>".encode(FORMAT))
 
-                    elif msg.startswith("!LOGIN"):
-                        try:
-                            _, username, password = msg.split(" ", 2)
-                            if login(username, password):
-                                conn.send("Login successful.".encode(FORMAT))
-                                logged_in = True
-                            else:
-                                conn.send("Login failed.".encode(FORMAT))
-                        except ValueError:
-                            conn.send("Invalid format. Use: !LOGIN <username> <password>".encode(FORMAT))
-                    else:
-                        conn.send("Please login or register first.".encode(FORMAT))
+#                     elif msg.startswith("!LOGIN"):
+#                         try:
+#                             _, username, password = msg.split(" ", 2)
+#                             if login(username, password):
+#                                 conn.send("Login successful.".encode(FORMAT))
+#                                 logged_in = True
+#                             else:
+#                                 conn.send("Login failed.".encode(FORMAT))
+#                         except ValueError:
+#                             conn.send("Invalid format. Use: !LOGIN <username> <password>".encode(FORMAT))
+#                     else:
+#                         conn.send("Please login or register first.".encode(FORMAT))
 
-                else:
-                    # Xử lý các yêu cầu sau khi đã đăng nhập
-                    if msg.startswith(FILE_LIST_REQUEST):
-                         # Chỉ truy cập thư mục PUBLIC
-                        files = os.listdir(folder_path)
-                        files_list = "\n".join(files) if files else "No files available."
-                        conn.send(files_list.encode(FORMAT))
-                        logging.info(FILE_LIST_REQUEST + f" from client {addr}")
-                    # Upload file
-                    elif msg.startswith(FILE_TRANSFER_MESSAGE):
-                        filename=msg.split(" ",1)[1]
-                        file_length = int(conn.recv(HEADER).decode(FORMAT)) 
-                        file_path = os.path.join(public_folder,filename)
-                        total_received = 0
-                        with open(file_path, "wb") as file:
-                            while(total_received<file_length):
-                                file_data = conn.recv(1024)
-                                if not file_data:
-                                    break
-                                total_received+=len(file_data)
-                                file.write(file_data)
-                        logging.info(f"Upload Successful: \"{filename}\" from client {addr}")
-                    # Download file
-                    elif msg.startswith(FILE_DOWNLOAD_REQUEST):
-                        filename = msg.split(" ", 1)[1]
-                        # Xác định đường dẫn tuyệt đối của file trong thư mục PUBLIC
-                        file_path = os.path.abspath(os.path.join(folder_path, "PUBLIC", filename))
-                        # Đường dẫn tuyệt đối của thư mục PUBLIC
-                        public_folder_path = os.path.abspath(os.path.join(folder_path, "PUBLIC"))
-                        # Đường dẫn tuyệt đối của thư mục PRIVATE
-                        private_folder_path = os.path.abspath(os.path.join(folder_path, "PRIVATE"))
-                        # So sánh các đường dẫn của file với thư mục PUBLIC
-                        if not os.path.relpath(file_path, public_folder_path).startswith(os.pardir):
-                        # Nếu không nằm ngoài thư mục PUBLIC
-                            if os.path.exists(file_path):
-                                conn.send(filename.encode(FORMAT))
-                                file_size = os.path.getsize(file_path)
-                                conn.send(str(file_size).encode(FORMAT))
-                                #Nếu là file zip
-                                with open(file_path, "rb") as f:
-                                    while True:
-                                        file_data = f.read(1024)
-                                        if not file_data:
-                                            break
-                                        conn.send(file_data)
-                                logging.info(f"Download Successful: \"{filename}\" from client {addr}")
-                            else:
-                                conn.send("File not found.".encode(FORMAT))
-                                logging.error(f"Download Unsuccessful: \"{filename}\" from client {addr}")
-                        else:
-                        # Nếu file yêu cầu nằm ngoài thư mục PUBLIC (tức là trong PRIVATE hoặc thư mục khác)
-                            if os.path.commonpath([file_path, private_folder_path]) == private_folder_path:
-                                conn.send("File not found.".encode(FORMAT))
-                                logging.warning(f"Download Unsuccessful: \"{filename}\" from client {addr}")
-                    #Dowload folder
-                    elif msg.startswith(FOLDER_DOWNLOAD_REQUEST):
-                        msg = conn.recv(1024).decode(FORMAT)
-                        handle_folder_download(msg, conn)
-                    else:
-                        conn.send("Invalid command.".encode(FORMAT))
+#                 else:
+#                     # Xử lý các yêu cầu sau khi đã đăng nhập
+#                     if msg.startswith(FILE_LIST_REQUEST):
+#                          # Chỉ truy cập thư mục PUBLIC
+#                         files = os.listdir(folder_path)
+#                         files_list = "\n".join(files) if files else "No files available."
+#                         conn.send(files_list.encode(FORMAT))
+#                         logging.info(FILE_LIST_REQUEST + f" from client {addr}")
+#                     # Upload file
+#                     elif msg.startswith(FILE_TRANSFER_MESSAGE):
+#                         filename=msg.split(" ",1)[1]
+#                         file_length = int(conn.recv(HEADER).decode(FORMAT)) 
+#                         file_path = os.path.join(public_folder,filename)
+#                         total_received = 0
+#                         with open(file_path, "wb") as file:
+#                             while(total_received<file_length):
+#                                 file_data = conn.recv(1024)
+#                                 if not file_data:
+#                                     break
+#                                 total_received+=len(file_data)
+#                                 file.write(file_data)
+#                         logging.info(f"Upload Successful: \"{filename}\" from client {addr}")
+#                     # Download file
+#                     elif msg.startswith(FILE_DOWNLOAD_REQUEST):
+#                         filename = msg.split(" ", 1)[1]
+#                         # Xác định đường dẫn tuyệt đối của file trong thư mục PUBLIC
+#                         file_path = os.path.abspath(os.path.join(folder_path, "PUBLIC", filename))
+#                         # Đường dẫn tuyệt đối của thư mục PUBLIC
+#                         public_folder_path = os.path.abspath(os.path.join(folder_path, "PUBLIC"))
+#                         # Đường dẫn tuyệt đối của thư mục PRIVATE
+#                         private_folder_path = os.path.abspath(os.path.join(folder_path, "PRIVATE"))
+#                         # So sánh các đường dẫn của file với thư mục PUBLIC
+#                         if not os.path.relpath(file_path, public_folder_path).startswith(os.pardir):
+#                         # Nếu không nằm ngoài thư mục PUBLIC
+#                             if os.path.exists(file_path):
+#                                 conn.send(filename.encode(FORMAT))
+#                                 file_size = os.path.getsize(file_path)
+#                                 conn.send(str(file_size).encode(FORMAT))
+#                                 #Nếu là file zip
+#                                 with open(file_path, "rb") as f:
+#                                     while True:
+#                                         file_data = f.read(1024)
+#                                         if not file_data:
+#                                             break
+#                                         conn.send(file_data)
+#                                 logging.info(f"Download Successful: \"{filename}\" from client {addr}")
+#                             else:
+#                                 conn.send("File not found.".encode(FORMAT))
+#                                 logging.error(f"Download Unsuccessful: \"{filename}\" from client {addr}")
+#                         else:
+#                         # Nếu file yêu cầu nằm ngoài thư mục PUBLIC (tức là trong PRIVATE hoặc thư mục khác)
+#                             if os.path.commonpath([file_path, private_folder_path]) == private_folder_path:
+#                                 conn.send("File not found.".encode(FORMAT))
+#                                 logging.warning(f"Download Unsuccessful: \"{filename}\" from client {addr}")
+#                     #Dowload folder
+#                     elif msg.startswith(FOLDER_DOWNLOAD_REQUEST):
+#                         msg = conn.recv(1024).decode(FORMAT)
+#                         handle_folder_download(msg, conn)
+#                     else:
+#                         conn.send("Invalid command.".encode(FORMAT))
 
-    finally:
-        conn.close()
-        connected_clients -= 1
-        logging.info(f"!!Disconnect from client {addr}")
-        print(f"[ACTIVE CONNECTIONS] {connected_clients} active connections.")
+#     finally:
+#         conn.close()
+#         connected_clients -= 1
+#         logging.info(f"!!Disconnect from client {addr}")
+#         print(f"[ACTIVE CONNECTIONS] {connected_clients} active connections.")
 #####Thay doi#########
 import os
 
