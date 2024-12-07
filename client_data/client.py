@@ -177,7 +177,129 @@ def download_file(filename):
             print(f"Lỗi khi tải file: {e}")
     download_button.config(state="normal")  
 
+# def receive_file(sock, save_path):
+#     """Nhận file từ socket"""
+#     # Nhận tên file
+#     filename = sock.recv(1024).decode(FORMAT)
+    
+#     # Nhận kích thước file
+#     filesize = int(sock.recv(1024).decode(FORMAT))
+    
+#     # Nhận nội dung file
+#     received_data = b''
+#     while len(received_data) < filesize:
+#         data = sock.recv(1024)
+#         if not data:
+#             break
+#         received_data += data
 
+#     # Lưu file
+#     with open(save_path, 'wb') as f:
+#         f.write(received_data)
+    
+#     return filename
+
+# def extract_zip(zip_path, extract_path):
+#     """Giải nén file zip"""
+#     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+#         zip_ref.extractall(extract_path)
+#  #####Thay doi#####   
+# def request_folder_download(client_socket):
+#     folder_to_send = input("Nhập tên thư mục cần tải (nằm trong PUBLIC): ")
+#     # Gửi yêu cầu tải thư mục
+#     client_socket.send(FOLDER_DOWNLOAD_REQUEST.encode(FORMAT))
+#     time.sleep(0.1)  # Đợi server xử lý
+#     client_socket.send(folder_to_send.encode(FORMAT))
+
+#     # Nhận phản hồi từ server
+#     response = client_socket.recv(1024).decode(FORMAT)
+#     print(f"[SERVER] {response}")
+
+#     if response.startswith("ERROR"):
+#         return
+
+#     # Nhận và lưu file ZIP
+#     zip_path = "received_folder.zip"
+#     filename = receive_file(client_socket, zip_path)  # Hàm nhận file từ socket
+#     print(f"Đã nhận file: {filename}")
+
+#     # Giải nén file ZIP
+#     extract_path = f"extracted_{folder_to_send}"
+#     if not os.path.exists(extract_path):
+#         os.makedirs(extract_path)
+
+#     extract_zip(zip_path, extract_path)  # Hàm giải nén file ZIP
+#     print(f"Đã giải nén thư mục vào: {extract_path}")
+
+#     # Dọn dẹp file ZIP
+#     if os.path.exists(zip_path):
+#         os.remove(zip_path)
+
+# def show_file_buttons():
+#     upload_button.grid(row=0, column=0, pady=10)
+#     download_button.grid(row=1, column=0, pady=10)
+#     close_button.grid(row=2, column=0, pady=10)
+
+#     # Ẩn các widget không cần thiết khi hiển thị file buttons
+#     login_button.grid_forget()
+#     register_button.grid_forget()
+#     username_label.grid_forget()
+#     password_label.grid_forget()
+#     username_entry.grid_forget()
+#     password_entry.grid_forget()
+#     show_hide_password_button.grid_forget()
+
+# def on_download_file_click():
+#     files = list_files()  # Lấy danh sách các file có sẵn từ server
+#     if files:
+#         # Cho phép người dùng chọn file bằng giao diện đồ họa
+#         file_to_download = filedialog.askopenfilename(
+#             title="Chọn file để tải xuống", initialdir="server_data\\PUBLIC", filetypes=[("All files", "*.*")])
+
+#         if file_to_download:
+#             # Chỉ lấy tên file, không cần đường dẫn đầy đủ
+#             file_to_download = file_to_download.split("/")[-1]
+#             download_file(file_to_download)  # Tải file đã chọn từ server
+#         else:
+#             print("Không có file nào được chọn.")
+
+
+# def on_download_folder_click():
+#     # Chọn thư mục lưu file tải xuống
+#     save_folder = filedialog.askdirectory(title="Chọn thư mục để lưu")
+#     if not save_folder:
+#         messagebox.showerror("Error", "Bạn chưa chọn thư mục!")
+#         return
+
+#     # Gửi yêu cầu tải thư mục
+#     send_message(FOLDER_DOWNLOAD_REQUEST)
+#     response = receive_message()
+
+#     if response.startswith("ERROR"):
+#         messagebox.showerror("Error", response)
+#         return
+
+#     # Nhận và lưu file ZIP
+#     zip_name = "received_folder.zip"
+#     zip_path = os.path.join(save_folder, zip_name)
+
+#     try:
+#         filename = receive_file(client, zip_path)  # Hàm nhận file từ socket
+#         print(f"Đã nhận file: {filename}")
+
+#         # Giải nén file ZIP
+#         extracted_path = os.path.join(save_folder, f"extracted_{filename.split('.zip')[0]}")
+#         if not os.path.exists(extracted_path):
+#             os.makedirs(extracted_path)
+
+#         extract_zip(zip_path, extracted_path)  # Hàm giải nén file ZIP
+#         print(f"Đã giải nén thư mục vào: {extracted_path}")
+
+#         # Xóa file ZIP sau khi giải nén
+#         os.remove(zip_path)
+#         messagebox.showinfo("Success", f"Thư mục đã được tải xuống và lưu tại: {extracted_path}")
+#     except Exception as e:
+#         messagebox.showerror("Error", f"Lỗi khi tải thư mục: {str(e)}")
 
 def list_files():
     """
