@@ -11,7 +11,8 @@ PORT = 8080
 HEADER = 64
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
-FILE_TRANSFER_MESSAGE = "!FILE"
+FILE_UPLOAD_FILE_MESSAGE = "!UPLOAD_FILE"
+FILE_UPLOAD_FOLDER_MESSAGE="!UPLOAD_FOLDER"
 FILE_LIST_REQUEST = "!LIST"
 FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
 REGISTER_REQUEST = "!REGISTER"
@@ -65,7 +66,7 @@ def login(username, password):
 
 
 def send_file(file_path):
-    send_message(f"{FILE_TRANSFER_MESSAGE} {file_path.split('/')[-1]}")
+    send_message(f"{FILE_UPLOAD_FILE_MESSAGE} {file_path.split('/')[-1]}")
     file_length = os.path.getsize(file_path)
     with open(file_path, "rb") as file:
 
@@ -81,7 +82,23 @@ def send_file(file_path):
     print(f"File {os.path.basename(file_path)} đã được gửi.")
     messagebox.showinfo(
         "Upload", f"File {os.path.basename(file_path)} đã được gửi.")
+def send_folder(folder_path):
+    for root, dirs, files in os.walk(folder_path):
+        for file_name in files:
+            file_path = os.path.join(root, file_name)
+            send_file(file_path)
+            print(f"Đang gửi file: {file_name}")
+            messagebox.showinfo("Upload", f"Đang gửi file: {file_name}")
 
+    print(f"Tất cả các file trong thư mục {folder_path} đã được gửi.")
+    messagebox.showinfo("Upload", f"Tất cả các file trong thư mục {folder_path} đã được gửi.")
+def get_folder_name(folder_path):
+    try:
+        folder_name = os.path.basename(folder_path)
+        return folder_name
+    except Exception as e:
+        print(f"Lỗi khi lấy tên thư mục: {e}")
+        return None
 def create_download_file_window(root,list_file):
     global download_window
     download_window = Toplevel(root)
@@ -177,130 +194,6 @@ def download_file(filename):
             print(f"Lỗi khi tải file: {e}")
     download_button.config(state="normal")  
 
-# def receive_file(sock, save_path):
-#     """Nhận file từ socket"""
-#     # Nhận tên file
-#     filename = sock.recv(1024).decode(FORMAT)
-    
-#     # Nhận kích thước file
-#     filesize = int(sock.recv(1024).decode(FORMAT))
-    
-#     # Nhận nội dung file
-#     received_data = b''
-#     while len(received_data) < filesize:
-#         data = sock.recv(1024)
-#         if not data:
-#             break
-#         received_data += data
-
-#     # Lưu file
-#     with open(save_path, 'wb') as f:
-#         f.write(received_data)
-    
-#     return filename
-
-# def extract_zip(zip_path, extract_path):
-#     """Giải nén file zip"""
-#     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-#         zip_ref.extractall(extract_path)
-#  #####Thay doi#####   
-# def request_folder_download(client_socket):
-#     folder_to_send = input("Nhập tên thư mục cần tải (nằm trong PUBLIC): ")
-#     # Gửi yêu cầu tải thư mục
-#     client_socket.send(FOLDER_DOWNLOAD_REQUEST.encode(FORMAT))
-#     time.sleep(0.1)  # Đợi server xử lý
-#     client_socket.send(folder_to_send.encode(FORMAT))
-
-#     # Nhận phản hồi từ server
-#     response = client_socket.recv(1024).decode(FORMAT)
-#     print(f"[SERVER] {response}")
-
-#     if response.startswith("ERROR"):
-#         return
-
-#     # Nhận và lưu file ZIP
-#     zip_path = "received_folder.zip"
-#     filename = receive_file(client_socket, zip_path)  # Hàm nhận file từ socket
-#     print(f"Đã nhận file: {filename}")
-
-#     # Giải nén file ZIP
-#     extract_path = f"extracted_{folder_to_send}"
-#     if not os.path.exists(extract_path):
-#         os.makedirs(extract_path)
-
-#     extract_zip(zip_path, extract_path)  # Hàm giải nén file ZIP
-#     print(f"Đã giải nén thư mục vào: {extract_path}")
-
-#     # Dọn dẹp file ZIP
-#     if os.path.exists(zip_path):
-#         os.remove(zip_path)
-
-# def show_file_buttons():
-#     upload_button.grid(row=0, column=0, pady=10)
-#     download_button.grid(row=1, column=0, pady=10)
-#     close_button.grid(row=2, column=0, pady=10)
-
-#     # Ẩn các widget không cần thiết khi hiển thị file buttons
-#     login_button.grid_forget()
-#     register_button.grid_forget()
-#     username_label.grid_forget()
-#     password_label.grid_forget()
-#     username_entry.grid_forget()
-#     password_entry.grid_forget()
-#     show_hide_password_button.grid_forget()
-
-# def on_download_file_click():
-#     files = list_files()  # Lấy danh sách các file có sẵn từ server
-#     if files:
-#         # Cho phép người dùng chọn file bằng giao diện đồ họa
-#         file_to_download = filedialog.askopenfilename(
-#             title="Chọn file để tải xuống", initialdir="server_data\\PUBLIC", filetypes=[("All files", "*.*")])
-
-#         if file_to_download:
-#             # Chỉ lấy tên file, không cần đường dẫn đầy đủ
-#             file_to_download = file_to_download.split("/")[-1]
-#             download_file(file_to_download)  # Tải file đã chọn từ server
-#         else:
-#             print("Không có file nào được chọn.")
-
-
-# def on_download_folder_click():
-#     # Chọn thư mục lưu file tải xuống
-#     save_folder = filedialog.askdirectory(title="Chọn thư mục để lưu")
-#     if not save_folder:
-#         messagebox.showerror("Error", "Bạn chưa chọn thư mục!")
-#         return
-
-#     # Gửi yêu cầu tải thư mục
-#     send_message(FOLDER_DOWNLOAD_REQUEST)
-#     response = receive_message()
-
-#     if response.startswith("ERROR"):
-#         messagebox.showerror("Error", response)
-#         return
-
-#     # Nhận và lưu file ZIP
-#     zip_name = "received_folder.zip"
-#     zip_path = os.path.join(save_folder, zip_name)
-
-#     try:
-#         filename = receive_file(client, zip_path)  # Hàm nhận file từ socket
-#         print(f"Đã nhận file: {filename}")
-
-#         # Giải nén file ZIP
-#         extracted_path = os.path.join(save_folder, f"extracted_{filename.split('.zip')[0]}")
-#         if not os.path.exists(extracted_path):
-#             os.makedirs(extracted_path)
-
-#         extract_zip(zip_path, extracted_path)  # Hàm giải nén file ZIP
-#         print(f"Đã giải nén thư mục vào: {extracted_path}")
-
-#         # Xóa file ZIP sau khi giải nén
-#         os.remove(zip_path)
-#         messagebox.showinfo("Success", f"Thư mục đã được tải xuống và lưu tại: {extracted_path}")
-#     except Exception as e:
-#         messagebox.showerror("Error", f"Lỗi khi tải thư mục: {str(e)}")
-
 def list_files():
     """
     Yêu cầu server gửi danh sách các file có sẵn để tải xuống hoặc upload
@@ -340,10 +233,13 @@ def show_file_buttons():
     file_window.geometry("400x250")
     
     global download_button
-    global upload_button
-    
+    global upload_file_button
+    global upload_folder_button
     # Nút Upload và Download chỉ hiển thị khi đăng nhập thành công
-    upload_button = Button(file_window, text="Upload File", command=on_upload_button_click,
+    upload_file_button = Button(file_window, text="Upload File", command=on_upload_button_click,
+    bg="green", fg="white", font=("Arial", 12))
+    
+    upload_folder_button = Button(file_window, text="Upload Folder", command=on_upload_folder_button_click,
     bg="green", fg="white", font=("Arial", 12))
     
     download_button = Button(file_window, text="Download File",
@@ -351,9 +247,10 @@ def show_file_buttons():
     
     close_button = Button(file_window, text="Close Connection",
                       command=close_connection, bg="red", fg="white", font=("Arial", 12))
-    upload_button.grid(row=0, column=0, pady=10)
-    download_button.grid(row=1, column=0, pady=10)
-    close_button.grid(row=2, column=0, pady=10)
+    upload_file_button.grid(row=0, column=0, pady=10)
+    upload_folder_button.grid(row=1, column=0, pady=10)
+    download_button.grid(row=2, column=0, pady=10)
+    close_button.grid(row=3, column=0, pady=10)
     
     # Ẩn các widget không cần thiết khi hiển thị file buttons
     username_entry.grid_forget()
@@ -366,7 +263,7 @@ def show_hide_password():
     else:
         password_entry.config(show='*')  # Ẩn mật khẩu
 
-# Nút Upload
+# Nút Upload File
 def on_upload_button_click():
     file_path = filedialog.askopenfilename(
         title="Chọn file để gửi")  # Chọn file từ máy tính
@@ -374,6 +271,25 @@ def on_upload_button_click():
         send_file(file_path)  # Gửi file đã chọn lên server
     else:
         print("Không có file nào được chọn.")
+# Nút Upload Folder
+def on_upload_folder_button_click():
+    # Mở hộp thoại để chọn thư mục
+    folder_path = filedialog.askdirectory(title="Chọn thư mục để gửi")
+    if folder_path:
+        # Lấy tên của thư mục từ đường dẫn
+        folder_name = get_folder_name(folder_path)
+        
+        # Gửi tên thư mục lên server trước
+        send_message(folder_name)  # Giả định hàm này gửi tên folder lên server
+        
+        # Sau đó gửi toàn bộ file trong thư mục
+        send_folder(folder_path)
+        
+        print(f"Đã gửi thư mục {folder_name} lên server.")
+    else:
+        print("Không có thư mục nào được chọn.")
+
+
 
 # Nút Download
 def on_download_button_click():
