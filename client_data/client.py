@@ -142,8 +142,7 @@ def download_file(filename):
 
     # Kiểm tra nếu server trả về thông báo lỗi
     if response == "File not found.":
-        print("Bạn Không được tải file này! ")
-        print("Nguyên nhân do bảo mật hoặc file không tồn tại")
+        messagebox.askokcancel("Error", "Bạn Không được tải file này! Nguyên nhân do bảo mật hoặc file không tồn tại")
         return
 
     # Nếu nhận được tên file hợp lệ, tiếp tục nhận kích thước file
@@ -240,7 +239,7 @@ def show_file_buttons():
     bg="green", fg="white", font=("Arial", 12))
     
     upload_folder_button = Button(file_window, text="Upload Folder", command=on_upload_folder_button_click,
-    bg="green", fg="white", font=("Arial", 12))
+    bg="pink", fg="white", font=("Arial", 12))
     
     download_button = Button(file_window, text="Download File",
     command=on_download_button_click, bg="blue", fg="white", font=("Arial", 12))
@@ -297,7 +296,7 @@ def on_download_button_click():
     if files:
         # Cho phép người dùng chọn file bằng giao diện đồ họa
         file_to_download = filedialog.askopenfilename(
-            title="Chọn file để tải xuống", initialdir="server_data\\PUBLIC", filetypes=[("All files", "*.*")])
+            title="Chọn file để tải xuống", initialdir="server_data", filetypes=[("All files", "*.*")])
 
         if file_to_download:
             # Chỉ lấy tên file, không cần đường dẫn đầy đủ
