@@ -1,16 +1,13 @@
-import logging.config
 import socket
 import threading
 import os
-from tkinter import Tk
-from tkinter import*
-from tkinter import messagebox
+import tkinter as tk
+from tkinter import messagebox, ttk
 from openpyxl import Workbook, load_workbook
-import zipfile
 import time
 import logging
 
-PORT = 8080
+PORT = 12345
 HEADER = 64
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
@@ -18,7 +15,8 @@ FILE_UPLOAD_FILE_MESSAGE = "!UPLOAD_FILE"
 FILE_UPLOAD_FOLDER_MESSAGE="!UPLOAD_FOLDER"
 FILE_LIST_REQUEST = "!LIST"
 FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
-SERVER = socket.gethostbyname(socket.gethostname())
+SERVER = "0.0.0.0"
+#SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
 
 all_connections = []
@@ -28,7 +26,7 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server.bind(ADDR)
 
-#File hoạt động của server
+# File hoạt động của server
 logging.basicConfig(
     filename="server_log.txt",  # Đường dẫn đến file lưu log
     level=logging.INFO,         # Mức độ log: INFO, WARNING, ERROR
@@ -36,7 +34,7 @@ logging.basicConfig(
     filemode="a"
 )
 
-#Folder của server
+# Folder của server
 folder_path = "server_data"
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)
@@ -49,32 +47,8 @@ if not os.path.exists(private_folder):
 
 connected_clients = 0  # Biến đếm số lượng kết nối
 
-def send_file_to_client(client_socket, filename):
-    try:
-        # Kiểm tra nếu file tồn tại
-        if os.path.exists(filename):
-            file_size = os.path.getsize(filename)
-            
-            # Gửi tên file và kích thước file
-            client_socket.send(filename.encode(FORMAT))
-            client_socket.send(str(file_size).encode(FORMAT))  # Gửi kích thước file như một số nguyên
-
-            # Đọc file và gửi dữ liệu
-            with open(filename, 'rb') as file:
-                file_data = file.read(1024)  # Đọc file từng phần (1024 bytes)
-                while file_data:
-                    client_socket.send(file_data)
-                    file_data = file.read(1024)  # Tiếp tục đọc file từng phần
-
-            print(f"File {filename} đã được gửi thành công.")
-        else:
-            # Gửi thông báo file không tồn tại
-            client_socket.send("File not found.".encode(FORMAT))
-    except Exception as e:
-        print(f"Error sending file: {e}")
-        client_socket.send("Error while sending file.".encode(FORMAT))
-
-
+##################################################################################################################################
+# Đăng nhập 
 def create_or_load_user_db():
     file_name = "user_data.xlsx"
     try:
@@ -108,7 +82,6 @@ def register(username, password):
     wb.save("user_data.xlsx")
     print("Đăng ký thành công!")
     return True
-
 def login(username, password):
     """
     Đăng nhập, kiểm tra tài khoản trong file Excel
@@ -122,7 +95,132 @@ def login(username, password):
             print("Đăng nhập thành công!")
             return True
     print("Đăng nhập thất bại!")
+##################################################################################################################################
+# KẾT NỐI
+def server_listen():
+    while True:
+        conn, addr = server.accept()
+        all_connections.append(conn)
+        thread = threading.Thread(target=handle_client, args=(conn, addr))
+        thread.daemon =True
+        thread.start()
+##################################################################################################################################
+# CLIENT DOWLOAD
+def build_folder_tree(folder_path):
+    """
+    Xây dựng cây thư mục với nhiều nhánh từ thư mục gốc, bao gồm cả các tệp và thư mục con.
+    Chỉ lấy phần cuối của folder_path (tên thư mục cuối cùng).
+    """
+    # Lấy phần cuối của folder_path
+    base_folder = os.path.basename(folder_path)
 
+    # Khởi tạo cây thư mục chỉ với phần cuối của folder_path
+    folder_tree = {base_folder: {}}
+
+    # Duyệt qua thư mục gốc và các thư mục con
+    for root, dirs, files in os.walk(folder_path):
+        # Tính toán đường dẫn tương đối từ thư mục gốc
+        relative_path = os.path.relpath(root, folder_path)
+        
+        # Nếu đường dẫn là thư mục gốc thì tạo node cho thư mục gốc
+        parts = relative_path.split(os.sep) if relative_path != '.' else []
+
+        # Duyệt qua các phần tử của đường dẫn tương đối và xây dựng cây
+        node = folder_tree[base_folder]  # Bắt đầu từ thư mục cuối cùng
+        for part in parts:
+            node = node.setdefault(part, {})
+
+        # Thêm các tệp vào thư mục tương ứng
+        for file in files:
+            node[file] = None  # Các tệp sẽ không có giá trị con, nên ta gán giá trị None
+
+        # Thêm thư mục con vào nếu có
+        for dir in dirs:
+            if dir not in node:
+                node[dir] = {}
+
+    return folder_tree 
+
+def handle_dowload_file(conn,addr,msg):
+    filename = msg.split(" ", 1)[1]
+    # Xác định đường dẫn tuyệt đối của file trong thư mục PUBLIC
+    file_path = os.path.abspath(os.path.join(folder_path, "PUBLIC", filename))
+    # Đường dẫn tuyệt đối của thư mục PUBLIC
+    public_folder_path = os.path.abspath(os.path.join(folder_path, "PUBLIC"))
+    # Đường dẫn tuyệt đối của thư mục PRIVATE
+    private_folder_path = os.path.abspath(os.path.join(folder_path, "PRIVATE"))
+    # So sánh các đường dẫn của file với thư mục PUBLIC
+    if not os.path.relpath(file_path, public_folder_path).startswith(os.pardir):
+    # Nếu không nằm ngoài thư mục PUBLIC
+        if os.path.exists(file_path):
+            conn.send(filename.encode(FORMAT))
+            file_size = os.path.getsize(file_path)
+            conn.send(str(file_size).encode(FORMAT))
+
+            with open(file_path, "rb") as f:
+                while True:
+                    file_data = f.read(1024)
+                    if not file_data:
+                        break
+                    conn.send(file_data)
+            logging.info(f"Download Successful: \"{filename}\" from client {addr}")
+        else:
+            conn.send("File not found.".encode(FORMAT))
+            logging.error(f"Download Unsuccessful: \"{filename}\" from client {addr}")
+    else:
+    # Nếu file yêu cầu nằm ngoài thư mục PUBLIC (tức là trong PRIVATE hoặc thư mục khác)
+        if os.path.commonpath([file_path, private_folder_path]) == private_folder_path:
+            conn.send("File not found.".encode(FORMAT))
+            logging.warning(f"Download Unsuccessful: \"{filename}\" from client {addr}")
+##################################################################################################################################
+# CLIENT UPLOAD FILE
+def send_file_to_client(client_socket, filename):
+    try:
+        # Kiểm tra nếu file tồn tại
+        if os.path.exists(filename):
+            file_size = os.path.getsize(filename)
+            
+            # Gửi tên file và kích thước file
+            client_socket.send(filename.encode(FORMAT))
+            client_socket.send(str(file_size).encode(FORMAT))  # Gửi kích thước file như một số nguyên
+
+            # Đọc file và gửi dữ liệu
+            with open(filename, 'rb') as file:
+                file_data = file.read(1024)  # Đọc file từng phần (1024 bytes)
+                while file_data:
+                    client_socket.send(file_data)
+                    file_data = file.read(1024)  # Tiếp tục đọc file từng phần
+
+            print(f"File {filename} đã được gửi thành công.")
+        else:
+            # Gửi thông báo file không tồn tại
+            client_socket.send("File not found.".encode(FORMAT))
+    except Exception as e:
+        print(f"Error sending file: {e}")
+        client_socket.send("Error while sending file.".encode(FORMAT))
+        
+def handle_file_upload(conn,addr,msg):
+    file_name = msg.split(" ", 1)[1]
+    file_length = int(conn.recv(HEADER).decode(FORMAT)) 
+
+    # Đảm bảo tất cả thư mục trong đường dẫn tồn tại
+    file_path = os.path.join(public_folder, file_name)
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)  # Tạo tất cả thư mục cha
+
+    total_received = 0
+    with open(file_path, "wb") as file:
+        while total_received < file_length:
+            file_data = conn.recv(1024)
+            if not file_data:
+                break
+            total_received += len(file_data)
+            file.write(file_data)
+    logging.info(f"Upload Successful: \"{file_name}\" from client {addr}")
+
+##################################################################################################################################
+# CLIENT UPLOAD FOLDER
 def handle_folder_upload(conn, addr):
     try:
         # Nhận độ dài tên thư mục
@@ -169,6 +267,7 @@ def handle_folder_upload(conn, addr):
     except Exception as e:
         logging.error(f"Error during folder upload from {addr}: {e}")
         conn.send("Error during upload.".encode(FORMAT))
+
 def handle_data(conn):
     try:
         data = conn.recv(1024)
@@ -183,8 +282,10 @@ def handle_data(conn):
         else:
             print("No data received.")
     except Exception as e:
-        print(f"Error receiving data: {e}")
+        print(f"Error receiving data: {e}") 
 
+##################################################################################################################################
+# XỬ LÍ CLIENT
 def handle_client(conn, addr):
     global connected_clients
     print(f"[NEW CONNECTION] {addr} connected.")
@@ -249,72 +350,31 @@ def handle_client(conn, addr):
 
                 else:
                     # Xử lý các yêu cầu sau khi đã đăng nhập
+                    
+                    #List file
                     if msg.startswith(FILE_LIST_REQUEST):
-                         # Chỉ truy cập thư mục PUBLIC
-                         
-                        files = os.listdir(public_folder)
-                        files_list = "\n".join(files) if files else "No files available."
-                        conn.send(files_list.encode(FORMAT))
+                        folder_tree = build_folder_tree(public_folder)
+                        folder_data = str(folder_tree)
+                        conn.sendall(folder_data.encode(FORMAT))
+                        conn.send(b"EOF")
                         logging.info(FILE_LIST_REQUEST + f" from client {addr}")
+                        
                     # Upload file
                     elif msg.startswith(FILE_UPLOAD_FILE_MESSAGE):
-                        filename = msg.split(" ", 1)[1]
-                        file_length = int(conn.recv(HEADER).decode(FORMAT)) 
-
-                        # Đảm bảo tất cả thư mục trong đường dẫn tồn tại
-                        file_path = os.path.join(public_folder, filename)
-                        directory = os.path.dirname(file_path)
-                        if not os.path.exists(directory):
-                            os.makedirs(directory)  # Tạo tất cả thư mục cha
-
-                        total_received = 0
-                        with open(file_path, "wb") as file:
-                            while total_received < file_length:
-                                file_data = conn.recv(1024)
-                                if not file_data:
-                                    break
-                                total_received += len(file_data)
-                                file.write(file_data)
-                        logging.info(f"Upload Successful: \"{filename}\" from client {addr}")
+                        handle_file_upload(conn,addr,msg)
+                        
                     # Upload folder
                     elif msg.startswith(FILE_UPLOAD_FOLDER_MESSAGE):
                         handle_folder_upload(conn, addr)
+                        
                     # Download file
                     elif msg.startswith(FILE_DOWNLOAD_REQUEST):
-                        filename = msg.split(" ", 1)[1]
-                        # Xác định đường dẫn tuyệt đối của file trong thư mục PUBLIC
-                        file_path = os.path.abspath(os.path.join(folder_path, "PUBLIC", filename))
-                        # Đường dẫn tuyệt đối của thư mục PUBLIC
-                        public_folder_path = os.path.abspath(os.path.join(folder_path, "PUBLIC"))
-                        # Đường dẫn tuyệt đối của thư mục PRIVATE
-                        private_folder_path = os.path.abspath(os.path.join(folder_path, "PRIVATE"))
-                        # So sánh các đường dẫn của file với thư mục PUBLIC
-                        if not os.path.relpath(file_path, public_folder_path).startswith(os.pardir):
-                        # Nếu không nằm ngoài thư mục PUBLIC
-                            if os.path.exists(file_path):
-                                conn.send(filename.encode(FORMAT))
-                                file_size = os.path.getsize(file_path)
-                                conn.send(str(file_size).encode(FORMAT))
-
-                                with open(file_path, "rb") as f:
-                                    while True:
-                                        file_data = f.read(1024)
-                                        if not file_data:
-                                            break
-                                        conn.send(file_data)
-                                logging.info(f"Download Successful: \"{filename}\" from client {addr}")
-                            else:
-                                conn.send("File not found.".encode(FORMAT))
-                                logging.error(f"Download Unsuccessful: \"{filename}\" from client {addr}")
-                        else:
-                        # Nếu file yêu cầu nằm ngoài thư mục PUBLIC (tức là trong PRIVATE hoặc thư mục khác)
-                            if os.path.commonpath([file_path, private_folder_path]) == private_folder_path:
-                                conn.send("File not found.".encode(FORMAT))
-                                logging.warning(f"Download Unsuccessful: \"{filename}\" from client {addr}")
-
+                        handle_dowload_file(conn,addr,msg)
                     else:
                         conn.send("Invalid command.".encode(FORMAT))
-
+    except :
+        print("Lỗi")
+        pass
     finally:
         all_connections.remove(conn)
         conn.close()
@@ -322,121 +382,34 @@ def handle_client(conn, addr):
         logging.info(f"!!Disconnect from client {addr}")
         print(f"[ACTIVE CONNECTIONS] {connected_clients} active connections.")
 
-
-# def handle_client(conn, addr):
-#     print(f"[NEW CONNECTION] {addr} connected.")
-#     clients.append(addr)  # Add client to the list
-    
-#     try:
-#         while True:
-#             msg_length = conn.recv(HEADER).decode(FORMAT)
-#             if msg_length:
-#                 msg_length = int(msg_length)
-#                 msg = conn.recv(msg_length).decode(FORMAT)
-
-#                 if msg == DISCONNECT_MESSAGE:
-#                     break
-#                 elif msg.startswith(FILE_LIST_REQUEST):
-#                     files = os.listdir(folder_path)
-#                     files_list = "\n".join(files) if files else "No files available."
-#                     conn.send(files_list.encode(FORMAT))
-#                 elif msg.startswith(FILE_DOWNLOAD_REQUEST):
-#                     filename = msg.split()[1]
-#                     file_path = os.path.join(folder_path, filename)
-
-#                     if os.path.exists(file_path):
-#                         conn.send(filename.encode(FORMAT))
-#                         file_size = os.path.getsize(file_path)
-#                         conn.send(str(file_size).encode(FORMAT))
-
-#                         with open(file_path, "rb") as f:
-#                             file_data = f.read()
-#                             conn.send(file_data)
-#                     else:
-#                         conn.send("File not found.".encode(FORMAT))
-#                 elif msg.startswith(FOLDER_DOWNLOAD_REQUEST):
-#                     folder_name = msg.split()[1]
-#                     folder_dir = os.path.join(folder_path, folder_name)
-
-#                     if os.path.exists(folder_dir) and os.path.isdir(folder_dir):
-#                         zip_name = folder_name + ".zip"
-#                         with zipfile.ZipFile(zip_name, 'w') as zipf:
-#                             for root, dirs, files in os.walk(folder_dir):
-#                                 for file in files:
-#                                     zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), folder_dir))
-
-#                         conn.send(folder_name.encode(FORMAT))
-#                         folder_size = os.path.getsize(zip_name)
-#                         conn.send(str(folder_size).encode(FORMAT))
-
-#                         with open(zip_name, "rb") as zip_file:
-#                             zip_data = zip_file.read()
-#                             conn.send(zip_data)
-
-#                         os.remove(zip_name)
-#                     else:
-#                         conn.send("Folder not found.".encode(FORMAT))
-#                 elif msg.startswith(FILE_TRANSFER_MESSAGE):
-#                     filename = msg.split()[1]
-#                     file_length = int(conn.recv(HEADER).decode(FORMAT))
-#                     file_data = conn.recv(file_length)
-
-#                     file_path = os.path.join(folder_path, filename)
-#                     with open(file_path, "wb") as f:
-#                         f.write(file_data)
-
-#                     conn.send(f"File {filename} đã được nhận và lưu thành công.".encode(FORMAT))
-#                 else:
-#                     print(f"[{addr}] Received invalid message: {msg}")
-#     finally:
-#         conn.close()
-#         clients.remove(addr)  # Remove client from the list
-#         update_clients_list()
-        
-#         # if connected_clients == 0:
-#         #     print("[INFO] No active connections. Closing the window.")
-#         #     root.quit()
-
-def server_listen():
-    while True:
-        conn, addr = server.accept()
-        all_connections.append(conn)
-        thread = threading.Thread(target=handle_client, args=(conn, addr))
-        thread.daemon =True
-        thread.start()
-
-        
-def send_message(chat_box,entry_text):
-    chat_box.config(state="normal")
-    msg = entry_text.get(1.0,END).strip() #strip để không lấy khoảng trống thừa 
-    entry_text.delete(1.0,END)
-    if msg:
-        chat_box.insert(END, "Server: " + msg + '\n')
-    chat_box.config(state="disabled") 
-
+##################################################################################################################################
+# GIAO DIỆN
 def clear_text_box(chat_box):
     chat_box.config(state="normal")
-    chat_box.delete(1.0, END)
+    chat_box.delete(1.0, tk.END)
     chat_box.config(state="disabled")
-
+    
 def history_log():
     pass
+
+def current_time():
+    cur_time = time.strftime("%Y-%m-%d %H:%M:%S",time.localtime())
+    return str(cur_time) + ": "
 
 def list_all_connecting():
     chat_box.config(state="normal")
     if not all_connections:
-        print("Không có kết nối")
+        chat_box.insert(tk.END,current_time()+"Không có kết nối\n")
     else: 
-        chat_box.insert(END,"Tất cả các kết nối là:\n")
+        chat_box.insert(tk.END,current_time()+"Tất cả các kết nối là:\n")
         for conn in all_connections:
             try:
                 addr=conn.getpeername()
-                chat_box.insert(END,f"Client {addr} đang kết nối")
+                chat_box.insert(tk.END,f"  Client {addr} đang kết nối\n")
             except Exception as e:
-                chat_box.insert(END,f"Lỗi khi lấy thông tin kết nối: {e}")
+                chat_box.insert(tk.END,f"  Lỗi khi lấy thông tin kết nối: {e}\n")
     chat_box.config(state="disabled")
-
-       
+  
 def closing_window():
     if messagebox.askokcancel("Thoát", "Bạn có muốn ngắt kết nối ??"):
         try: 
@@ -447,16 +420,15 @@ def closing_window():
     os._exit(0)
 
     
-    
 print("[STARTING] Server is starting...")
 server.listen()
 print(f"[LISTENING] Server is listening on {SERVER}")
 logging.info("Server Start!!") #Ghi vào file log
 # Khởi tạo cửa sổ Tkinter
 global root
-root = Tk()
+root = tk.Tk()
 root.title("Server Interface")
-root.geometry("500x500")
+root.geometry("700x500")
 
 root.protocol("WM_DELETE_WINDOW", closing_window)
 # Xử lý dữ liệu  
@@ -466,16 +438,20 @@ handle_server.start()
 
 # Xử lí giao diện
 
-chat_box = Text(root, bg="light yellow",height = 15,width=50,state="disabled")
+chat_box = tk.Text(root, bg="light yellow",height = 15,width=75,state="disabled", wrap=tk.WORD)
 chat_box.grid(row=0, column=0, columnspan=10, padx=10, pady=10)
 
-button_clear_text_box = Button(root, text="Clear all text", command=lambda: clear_text_box(chat_box))
+scrollbar = ttk.Scrollbar(root, orient=tk.VERTICAL, command=chat_box.yview)
+scrollbar.grid(row=0, column=10,sticky="ns")
+chat_box.config(yscrollcommand=scrollbar.set)
+
+button_clear_text_box = tk.Button(root, text="Clear all text", command=lambda: clear_text_box(chat_box))
 button_clear_text_box.grid(row=2, column=0, padx=10, pady=10)
 
-button_all_connected = Button(root, text="ALL connected", command=list_all_connecting)
+button_all_connected = tk.Button(root, text="ALL connected", command=list_all_connecting)
 button_all_connected.grid(row=3, column=0, padx=10, pady=10)
 
-button_history_log = Button(root, text="History log", command=history_log)
+button_history_log = tk.Button(root, text="History log", command=history_log)
 button_history_log.grid(row=4, column=0, padx=10, pady=10)
 
 root.mainloop() 
