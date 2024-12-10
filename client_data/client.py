@@ -5,9 +5,9 @@ import zipfile
 import time
 # from tkinter import Tk, Button, filedialog, Label, Entry, StringVar, messagebox, ttk, Toplevel
 from tkinter import*
-from tkinter import ttk, Toplevel, messagebox, filedialog
+from tkinter import ttk, Toplevel, messagebox, filedialog, StringVar
 import tkinter.simpledialog as simpledialog
-PORT = 8080
+PORT = 12345
 HEADER = 64
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
@@ -18,7 +18,7 @@ FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
 REGISTER_REQUEST = "!REGISTER"
 LOGIN_REQUEST = "!LOGIN"
 
-#SERVER = "192.168.222.234"  # Địa chỉ IP của server
+#SERVER = "192.168.1.97"  # Địa chỉ IP của server
 SERVER = socket.gethostbyname(socket.gethostname()) #Lấy ip của máy vì chạy cùng 1 máy
 ADDR = (SERVER, PORT)
 
@@ -64,6 +64,23 @@ def login(username, password):
         messagebox.showerror("Login", "Đăng nhập thất bại!")
         return False
 
+# Nút Upload Folder
+def on_upload_folder_button_click():
+    # Mở hộp thoại để chọn thư mục
+    folder_path = filedialog.askdirectory(title="Chọn thư mục để gửi")
+    if folder_path:
+        # Lấy tên của thư mục từ đường dẫn
+        folder_name = get_folder_name(folder_path)
+        
+        # Gửi tên thư mục lên server trước
+        send_message(folder_name)  # Giả định hàm này gửi tên folder lên server
+        
+        # Sau đó gửi toàn bộ file trong thư mục
+        send_folder(folder_path)
+        
+        print(f"Đã gửi thư mục {folder_name} lên server.")
+    else:
+        print("Không có thư mục nào được chọn.")
 
 def send_file(file_path):
     send_message(f"{FILE_UPLOAD_FILE_MESSAGE} {file_path.split('/')[-1]}")
@@ -82,55 +99,11 @@ def send_file(file_path):
     print(f"File {os.path.basename(file_path)} đã được gửi.")
     messagebox.showinfo(
         "Upload", f"File {os.path.basename(file_path)} đã được gửi.")
-def send_folder(folder_path):
-    for root, dirs, files in os.walk(folder_path):
-        for file_name in files:
-            file_path = os.path.join(root, file_name)
-            send_file(file_path)
-            print(f"Đang gửi file: {file_name}")
-            messagebox.showinfo("Upload", f"Đang gửi file: {file_name}")
 
-    print(f"Tất cả các file trong thư mục {folder_path} đã được gửi.")
-    messagebox.showinfo("Upload", f"Tất cả các file trong thư mục {folder_path} đã được gửi.")
-def get_folder_name(folder_path):
-    try:
-        folder_name = os.path.basename(folder_path)
-        return folder_name
-    except Exception as e:
-        print(f"Lỗi khi lấy tên thư mục: {e}")
-        return None
-def create_download_file_window(root,list_file):
-    global download_window
-    download_window = Toplevel(root)
-    download_window.title("Download file")
-    
-    list_label_filename = []
-    list_progress = []
-    list_percent = []
-    list_pause = []
-    list_cancel = []
-    
-    index_row = 0
-    
-    for file in list_file:
-        list_label = Label(download_window,text=f"Đang tải file: \"{file}\"").grid(row=index_row,column=0)
-        list_label_filename.append(list_label)
-        
-        index_row += 1
-        
-        progress = ttk.Progressbar(download_window,length=250,mode="determinate",).grid(row=index_row,column=0)
-        list_progress.append(progress)
-        
-        percent = Label(download_window,text="0%", font=("Arial", 10)).grid(row=index_row,column=0,padx=1)
-        list_percent.append(percent)
-        
-def update_progress(progress,percent,index,value,maximum):
-    pass
         
 def handle_download(file_size):
     pass
         
-
 def download_file(filename): 
     """
     Yêu cầu server gửi file về client, chỉ cho phép tải file từ thư mục PUBLIC
@@ -193,19 +166,78 @@ def download_file(filename):
             print(f"Lỗi khi tải file: {e}")
     download_button.config(state="normal")  
 
+def parse_folder_tree(data):
+    """
+    Chuyển đổi chuỗi nhận được từ server thành cấu trúc cây.
+    """
+    # Đánh giá chuỗi thành dict (cấu trúc cây)
+    folder_tree = eval(data)  # Đổi chuỗi thành từ điển
+    return folder_tree
+def populate_tree(tree, parent, structure):
+    """
+    Thêm các node từ cấu trúc cây vào Treeview.
+    """
+    for name, children in structure.items():
+        node_id = tree.insert(parent, "end", text=name, open=False)
+        if children:
+            populate_tree(tree, node_id, children)
+
+def create_tree_view(folder_tree):
+    """
+    Tạo giao diện hiển thị Treeview từ cấu trúc cây.
+    """
+    tree_view = Toplevel(file_window)  # Tạo cửa sổ con cho Treeview
+    tree_view.title("Folder Tree View")
+    
+    # Tạo Treeview
+    tree = ttk.Treeview(tree_view)  # Lưu ý: tree nên được tạo trong tree_view chứ không phải root
+    tree.heading("#0", text="Folders", anchor="w")
+    tree.pack(fill="both", expand=True)
+
+    # Thêm dữ liệu vào Treeview
+    
+    populate_tree(tree, "", folder_tree)
+
+    def on_choose_button_click():
+        selected_item = tree.selection()
+        if selected_item:
+            # Kiểm tra nếu node chọn là node lá
+            if not tree.get_children(selected_item):  # Nếu không có phần tử con thì đây là node lá
+                file_to_download = tree.item(selected_item, "text")  # Lấy tên thư mục được chọn
+                download_file(file_to_download)
+                tree_view.destroy()
+            else:
+                print("Bạn chỉ có thể chọn các node lá!")  # Thông báo nếu chọn node không phải là node lá
+
+    # Nút chọn để lấy thư mục đã chọn
+    choose_button = Button(tree_view, text="Chọn", command=on_choose_button_click)
+    choose_button.pack(pady=10)
+
+    # Cập nhật lại khi nhấp chuột
+    tree.bind("<ButtonRelease-1>", lambda event: on_treeview_click(event=event, tree=tree))
+
+def on_treeview_click(event, tree):
+    selected_item = tree.selection()
+    # Nếu đã chọn một mục, bỏ chọn mục cũ
+    if len(selected_item) > 1:
+        tree.selection_remove(selected_item[1:])  # Bỏ chọn các mục khác
+
+# Gắn sự kiện để phát hiện khi người dùng chọn mục
+
 def list_files():
     """
     Yêu cầu server gửi danh sách các file có sẵn để tải xuống hoặc upload
     """
     send_message(FILE_LIST_REQUEST)  # Yêu cầu server gửi danh sách file
-
     # Nhận danh sách các file từ server
-    files = client.recv(1024).decode(FORMAT)
-    if files:
-        return files.split("\n")
-    else:
-        print("Không có file nào trên server.")
-        return []
+    data = b""
+    while True:
+        packet = client.recv(1024)
+        if packet == b"EOF":
+            break
+        data += packet
+    
+    return data.decode(FORMAT)
 
 def on_register_button_click():
     username = username_var.get()
@@ -225,21 +257,41 @@ def on_login_button_click():
     else:
         messagebox.showerror("Error", "Vui lòng nhập đầy đủ thông tin.")
 
+def send_folder(folder_path):
+    for root, dirs, files in os.walk(folder_path):
+        for file_name in files:
+            file_path = os.path.join(root, file_name)
+            send_file(file_path)
+            print(f"Đang gửi file: {file_name}")
+            messagebox.showinfo("Upload", f"Đang gửi file: {file_name}")
+    print(f"Tất cả các file trong thư mục {folder_path} đã được gửi.")
+    messagebox.showinfo("Upload", f"Tất cả các file trong thư mục {folder_path} đã được gửi.")
+def get_folder_name(folder_path):
+    try:
+        folder_name = os.path.basename(folder_path)
+        return folder_name
+    except Exception as e:
+        print(f"Lỗi khi lấy tên thư mục: {e}")
+        return None
 
 def show_file_buttons():
-    file_window =  Toplevel(root)
+    root.quit()
+    root.destroy()
+    global file_window 
+    file_window =  Tk()
     file_window.title("Dowload\\Upload File")
     file_window.geometry("400x250")
     
     global download_button
     global upload_file_button
     global upload_folder_button
+    
     # Nút Upload và Download chỉ hiển thị khi đăng nhập thành công
     upload_file_button = Button(file_window, text="Upload File", command=on_upload_button_click,
     bg="green", fg="white", font=("Arial", 12))
     
     upload_folder_button = Button(file_window, text="Upload Folder", command=on_upload_folder_button_click,
-    bg="pink", fg="white", font=("Arial", 12))
+    bg="green", fg="white", font=("Arial", 12))
     
     download_button = Button(file_window, text="Download File",
     command=on_download_button_click, bg="blue", fg="white", font=("Arial", 12))
@@ -251,9 +303,7 @@ def show_file_buttons():
     download_button.grid(row=2, column=0, pady=10)
     close_button.grid(row=3, column=0, pady=10)
     
-    # Ẩn các widget không cần thiết khi hiển thị file buttons
-    username_entry.grid_forget()
-    password_entry.grid_forget()
+    file_window.mainloop()
 
 # Trạng thái hiển thị của mật khẩu
 def show_hide_password():
@@ -262,7 +312,7 @@ def show_hide_password():
     else:
         password_entry.config(show='*')  # Ẩn mật khẩu
 
-# Nút Upload File
+# Nút Upload
 def on_upload_button_click():
     file_path = filedialog.askopenfilename(
         title="Chọn file để gửi")  # Chọn file từ máy tính
@@ -270,40 +320,12 @@ def on_upload_button_click():
         send_file(file_path)  # Gửi file đã chọn lên server
     else:
         print("Không có file nào được chọn.")
-# Nút Upload Folder
-def on_upload_folder_button_click():
-    # Mở hộp thoại để chọn thư mục
-    folder_path = filedialog.askdirectory(title="Chọn thư mục để gửi")
-    if folder_path:
-        # Lấy tên của thư mục từ đường dẫn
-        folder_name = get_folder_name(folder_path)
-        
-        # Gửi tên thư mục lên server trước
-        send_message(folder_name)  # Giả định hàm này gửi tên folder lên server
-        
-        # Sau đó gửi toàn bộ file trong thư mục
-        send_folder(folder_path)
-        
-        print(f"Đã gửi thư mục {folder_name} lên server.")
-    else:
-        print("Không có thư mục nào được chọn.")
-
-
 
 # Nút Download
 def on_download_button_click():
-    files = list_files()  # Lấy danh sách các file có sẵn từ server
-    if files:
-        # Cho phép người dùng chọn file bằng giao diện đồ họa
-        file_to_download = filedialog.askopenfilename(
-            title="Chọn file để tải xuống", initialdir="server_data", filetypes=[("All files", "*.*")])
-
-        if file_to_download:
-            # Chỉ lấy tên file, không cần đường dẫn đầy đủ
-            file_to_download = file_to_download.split("/")[-1]
-            download_file(file_to_download)  # Tải file đã chọn từ server
-        else:
-            print("Không có file nào được chọn.")
+    data = list_files()
+    folder_tree = parse_folder_tree(data)
+    create_tree_view(folder_tree)
 
 #Dừng kết nối 
 def close_connection():
@@ -346,7 +368,8 @@ root.protocol("WM_DELETE_WINDOW", closing_window)
 
 # Giao diện Đăng nhập / Đăng ký
 def on_enter_user(event):
-    username_entry.delete(0,END)
+    if username_entry.get() == "Username":
+        username_entry.delete(0,END)
 def on_leave_user(event):
     name = username_entry.get()
     if name=='':
@@ -361,8 +384,9 @@ username_entry.bind('<FocusOut>',on_leave_user)
 Frame(frame,width=295,height=2,bg='black').place(x=25,y=107)
 
 def on_enter_pass(event):
-    password_entry.delete(0,END)
-    password_entry.config(show="*")
+    if password_entry.get() == "Password":
+        password_entry.delete(0,END)
+        password_entry.config(show="*")
 def on_leave_pass(event):
     password = password_entry.get()
     if password=='':
