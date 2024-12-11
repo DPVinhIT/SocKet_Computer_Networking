@@ -127,7 +127,7 @@ def server_listen():
         thread.daemon =True
         thread.start()
 ##################################################################################################################################
-# CLIENT DOWLOAD
+# CLIENT DOWNLOAD
 def build_folder_tree(folder_path):
     """
     Xây dựng cây thư mục với nhiều nhánh từ thư mục gốc, bao gồm cả các tệp và thư mục con.
@@ -163,7 +163,7 @@ def build_folder_tree(folder_path):
 
     return folder_tree 
 
-def handle_dowload_file(conn,addr,msg):
+def handle_download_file(conn,addr,msg):
     filename = msg.split(" ", 1)[1]
     # Xác định đường dẫn tuyệt đối của file trong thư mục PUBLIC
     file_path = os.path.abspath(os.path.join(folder_path, filename))
@@ -277,8 +277,12 @@ def handle_folder_upload(conn, addr):
         logging.info(f"Starting to receive folder: {folder_name} from client {addr}")
 
         # Nhận số lượng file trong thư mục
+        #num_files_msg = int(conn.recv(HEADER).decode(FORMAT))
+        #num_files = conn.recv(num_files_msg).decode(FORMAT)
         num_files = int(conn.recv(HEADER).decode(FORMAT))
-
+        
+        print(num_files)
+        
         for _ in range(num_files):
             # Nhận thông tin file
             file_name_length = int(conn.recv(HEADER).decode(FORMAT))
@@ -411,11 +415,11 @@ def handle_client(conn, addr):
                         
                     # Download file
                     elif msg.startswith(FILE_DOWNLOAD_REQUEST):
-                        handle_dowload_file(conn,addr,msg)
+                        handle_download_file(conn,addr,msg)
                     else:
                         conn.send("Invalid command.".encode(FORMAT))
-    except :
-        print("Lỗi")
+    except Exception as e:
+        print(f"Lỗi: {e}")
         pass
     finally:
         all_connections.remove(conn)
