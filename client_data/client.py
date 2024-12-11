@@ -69,20 +69,23 @@ def on_upload_folder_button_click():
     # Mở hộp thoại để chọn thư mục, với thư mục mặc định là client_data
     folder_path = filedialog.askdirectory(title="Chọn thư mục để gửi", initialdir="client_data")
 
-    # Kiểm tra xem thư mục có nằm trong thư mục client_data không
-    if folder_path and os.path.abspath(folder_path).startswith(os.path.abspath("client_data")):
-        # Lấy tên của thư mục từ đường dẫn
-        folder_name = get_folder_name(folder_path)
-        
-        # Gửi tên thư mục lên server trước
-        send_message(folder_name)  # Giả định hàm này gửi tên folder lên server
-        
-        # Sau đó gửi toàn bộ file trong thư mục
-        send_folder(folder_path)
-        
-        print(f"Đã gửi thư mục {folder_name} lên server.")
-    else:
-        messagebox.showerror("Error", "Chỉ có thể chọn folder trong thư mục client_data.")
+    if folder_path:  # Người dùng đã chọn một thư mục
+        # Kiểm tra xem thư mục có nằm trong thư mục client_data không
+        if os.path.abspath(folder_path).startswith(os.path.abspath("client_data")):
+            # Lấy tên của thư mục từ đường dẫn
+            folder_name = get_folder_name(folder_path)
+            
+            # Gửi tên thư mục lên server trước
+            send_message(folder_name)  # Giả định hàm này gửi tên folder lên server
+            
+            # Sau đó gửi toàn bộ file trong thư mục
+            send_folder(folder_path)
+            
+            print(f"Đã gửi thư mục {folder_name} lên server.")
+        else:
+            messagebox.showerror("Error", "Chỉ có thể chọn folder trong thư mục client_data.")
+    else:  # Người dùng không chọn thư mục
+        messagebox.showinfo("Thông báo", "Bạn chưa chọn thư mục nào.")
 
 def send_file(file_path):
     send_message(f"{FILE_UPLOAD_FILE_MESSAGE} {file_path.split('/')[-1]}")
@@ -319,11 +322,15 @@ def on_upload_button_click():
     file_path = filedialog.askopenfilename(
         title="Chọn file để gửi", initialdir="client_data")  # Chọn file từ máy tính
 
-    # Kiểm tra xem file có được chọn và file có nằm trong thư mục client_data không
-    if file_path and os.path.abspath(file_path).startswith(os.path.abspath("client_data")):
-        send_file(file_path)  # Gửi file đã chọn lên server
-    else:
-        messagebox.showerror("Error", "Chỉ có thể chọn file trong thư mục client_data.")
+    if file_path:  # Người dùng đã chọn một file
+        # Kiểm tra xem file có nằm trong thư mục client_data không
+        if os.path.abspath(file_path).startswith(os.path.abspath("client_data")):
+            send_file(file_path)  # Gửi file đã chọn lên server
+            print(f"Đã gửi file {os.path.basename(file_path)} lên server.")
+        else:
+            messagebox.showerror("Error", "Chỉ có thể chọn file trong thư mục client_data.")
+    else:  # Người dùng không chọn file
+        messagebox.showinfo("Thông báo", "Bạn chưa chọn file nào.")
 
 # Nút Download
 def on_download_button_click():
