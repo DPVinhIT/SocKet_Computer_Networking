@@ -81,7 +81,7 @@ def on_upload_folder_button_click():
             # Sau đó gửi toàn bộ file trong thư mục
             send_folder(folder_path)
             
-            print(f"Đã gửi thư mục {folder_name} lên server.")
+            messagebox.showinfo("Server", f"Đã gửi thư mục {folder_name} lên server.")
         else:
             messagebox.showerror("Error", "Chỉ có thể chọn folder trong thư mục client_data.")
     else:  # Người dùng không chọn thư mục
@@ -100,10 +100,6 @@ def send_file(file_path):
             if not file_data:
                 break
             client.send(file_data)
-
-    print(f"File {os.path.basename(file_path)} đã được gửi.")
-    messagebox.showinfo(
-        "Upload", f"File {os.path.basename(file_path)} đã được gửi.")
 
         
 def handle_download(file_size):
@@ -326,7 +322,7 @@ def on_upload_button_click():
         # Kiểm tra xem file có nằm trong thư mục client_data không
         if os.path.abspath(file_path).startswith(os.path.abspath("client_data")):
             send_file(file_path)  # Gửi file đã chọn lên server
-            print(f"Đã gửi file {os.path.basename(file_path)} lên server.")
+            messagebox.showinfo("Server", f"Đã gửi file {os.path.basename(file_path)} lên server.")
         else:
             messagebox.showerror("Error", "Chỉ có thể chọn file trong thư mục client_data.")
     else:  # Người dùng không chọn file
