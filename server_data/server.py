@@ -166,7 +166,7 @@ def build_folder_tree(folder_path):
 def handle_dowload_file(conn,addr,msg):
     filename = msg.split(" ", 1)[1]
     # Xác định đường dẫn tuyệt đối của file trong thư mục PUBLIC
-    file_path = os.path.abspath(os.path.join(folder_path, "PUBLIC", filename))
+    file_path = os.path.abspath(os.path.join(folder_path, filename))
     # Đường dẫn tuyệt đối của thư mục PUBLIC
     public_folder_path = os.path.abspath(os.path.join(folder_path, "PUBLIC"))
     # Đường dẫn tuyệt đối của thư mục PRIVATE
@@ -184,7 +184,7 @@ def handle_dowload_file(conn,addr,msg):
                     file_data = f.read(1024)
                     if not file_data:
                         break
-                    conn.send(file_data)
+                    conn.sendall(file_data)
             logging.info(f"Download Successful: \"{filename}\" from client {addr}")
         else:
             conn.send("File not found.".encode(FORMAT))
