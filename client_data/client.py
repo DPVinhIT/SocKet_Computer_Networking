@@ -1,8 +1,5 @@
 import socket
-import threading
 import os
-import zipfile
-import time
 # from tkinter import Tk, Button, filedialog, Label, Entry, StringVar, messagebox, ttk, Toplevel
 from tkinter import*
 from tkinter import ttk, Toplevel, messagebox, filedialog, StringVar
@@ -21,6 +18,10 @@ LOGIN_REQUEST = "!LOGIN"
 #SERVER = "192.168.1.97"  # Địa chỉ IP của server
 SERVER = socket.gethostbyname(socket.gethostname()) #Lấy ip của máy vì chạy cùng 1 máy
 ADDR = (SERVER, PORT)
+
+folder_path = "client_data"
+if not os.path.exists(folder_path):
+    os.makedirs(folder_path)
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -105,7 +106,7 @@ def send_file(file_path):
 def handle_download(file_size):
     pass
         
-def download_file(filename): 
+def download_file(filename,tree_view): 
     """
     Yêu cầu server gửi file về client, chỉ cho phép tải file từ thư mục PUBLIC
     """
@@ -120,7 +121,7 @@ def download_file(filename):
         return
 
     # Nếu nhận được tên file hợp lệ, tiếp tục nhận kích thước file
-    file_name = response
+    file_name = response.split("/")[-1]
     file_size = int(client.recv(HEADER).decode(FORMAT))
 
     print(f"Đang tải xuống file: {file_name}, kích thước: {file_size} bytes")
@@ -130,11 +131,11 @@ def download_file(filename):
         os.makedirs('client_data')
 
     # Mở file và bắt đầu tải xuống
-    with open(f"client_data/{file_name}", "wb") as file:
+    with open(os.path.join(folder_path, file_name), "wb") as file:
         total_received = 0
         
         download_button.config(state="disabled")
-        download_window1 = Toplevel(root)
+        download_window1 = Toplevel(tree_view)
         download_window1.title(f"Download file: \"{file_name}\"")
         
         download_label = Label(download_window1, text=f"Đang tải xuống \"{file_name}\"...")
@@ -183,6 +184,24 @@ def populate_tree(tree, parent, structure):
         if children:
             populate_tree(tree, node_id, children)
 
+def find_path(tree, target, current_path=""):
+    for key, value in tree.items():
+        # Cập nhật đường dẫn hiện tại
+        new_path = f"{current_path}/{key}" if current_path else key
+        
+        # Kiểm tra nếu key là file (value == None)
+        if key == target and value is None:
+            return new_path
+        
+        # Nếu value là folder con (dạng dict), tiếp tục đệ quy
+        if isinstance(value, dict):
+            result = find_path(value, target, new_path)
+            if result:  # Nếu tìm thấy trong nhánh con, trả về kết quả
+                return result
+    
+    # Không tìm thấy trong nhánh này
+    return None
+
 def create_tree_view(folder_tree):
     """
     Tạo giao diện hiển thị Treeview từ cấu trúc cây.
@@ -194,9 +213,8 @@ def create_tree_view(folder_tree):
     tree = ttk.Treeview(tree_view)  # Lưu ý: tree nên được tạo trong tree_view chứ không phải root
     tree.heading("#0", text="Folders", anchor="w")
     tree.pack(fill="both", expand=True)
-
-    # Thêm dữ liệu vào Treeview
     
+    # Thêm dữ liệu vào Treeview
     populate_tree(tree, "", folder_tree)
 
     def on_choose_button_click():
@@ -205,10 +223,12 @@ def create_tree_view(folder_tree):
             # Kiểm tra nếu node chọn là node lá
             if not tree.get_children(selected_item):  # Nếu không có phần tử con thì đây là node lá
                 file_to_download = tree.item(selected_item, "text")  # Lấy tên thư mục được chọn
-                download_file(file_to_download)
+                file_path = find_path(folder_tree,file_to_download,"")
+                download_file(file_path,tree_view)
+                tree_view.quit()
                 tree_view.destroy()
             else:
-                print("Bạn chỉ có thể chọn các node lá!")  # Thông báo nếu chọn node không phải là node lá
+                print("Bạn chỉ có thể chọn file không phải folder!")  # Thông báo nếu chọn node không phải là node lá
 
     # Nút chọn để lấy thư mục đã chọn
     choose_button = Button(tree_view, text="Chọn", command=on_choose_button_click)
@@ -231,14 +251,16 @@ def list_files():
     """
     send_message(FILE_LIST_REQUEST)  # Yêu cầu server gửi danh sách file
     # Nhận danh sách các file từ server
-    data = b""
+    data = ""
     while True:
-        packet = client.recv(1024)
-        if packet == b"EOF":
+        packet = client.recv(1024).decode(FORMAT)
+        if not packet :
             break
         data += packet
-    
-    return data.decode(FORMAT)
+        if "EOF" in packet:
+            data = data.replace("EOF","")
+            break
+    return data
 
 def on_register_button_click():
     username = username_var.get()
