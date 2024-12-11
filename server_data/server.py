@@ -220,26 +220,46 @@ def send_file_to_client(client_socket, filename):
     except Exception as e:
         print(f"Error sending file: {e}")
         client_socket.send("Error while sending file.".encode(FORMAT))
-        
-def handle_file_upload(conn,addr,msg):
+
+def get_unique_filename(file_path):
+    if not os.path.exists(file_path):
+        return file_path
+
+    base, ext = os.path.splitext(file_path)
+    counter = 1
+    while True:
+        new_file_path = f"{base}({counter}){ext}"
+        if not os.path.exists(new_file_path):
+            return new_file_path
+        counter += 1
+          
+def handle_file_upload(conn, addr, msg):
     file_name = msg.split(" ", 1)[1]
     file_length = int(conn.recv(HEADER).decode(FORMAT)) 
 
-    # Đảm bảo tất cả thư mục trong đường dẫn tồn tại
+    # Xác định đường dẫn file ban đầu
     file_path = os.path.join(public_folder, file_name)
-    directory = os.path.dirname(file_path)
+    # Đổi tên file nếu trùng
+    unique_file_path = get_unique_filename(file_path)
+
+    # Đảm bảo tất cả thư mục trong đường dẫn tồn tại
+    directory = os.path.dirname(unique_file_path)
     if not os.path.exists(directory):
         os.makedirs(directory)  # Tạo tất cả thư mục cha
 
+    # Nhận dữ liệu từ client và lưu vào file
     total_received = 0
-    with open(file_path, "wb") as file:
+    with open(unique_file_path, "wb") as file:
         while total_received < file_length:
             file_data = conn.recv(1024)
             if not file_data:
                 break
             total_received += len(file_data)
             file.write(file_data)
-    logging.info(f"Upload Successful: \"{file_name}\" from client {addr}")
+
+    # Ghi log khi upload thành công
+    logging.info(f"Upload Successful: \"{unique_file_path}\" from client {addr}")
+
 
 ##################################################################################################################################
 # CLIENT UPLOAD FOLDER
