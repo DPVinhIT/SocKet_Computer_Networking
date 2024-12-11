@@ -66,9 +66,11 @@ def login(username, password):
 
 # Nút Upload Folder
 def on_upload_folder_button_click():
-    # Mở hộp thoại để chọn thư mục
-    folder_path = filedialog.askdirectory(title="Chọn thư mục để gửi")
-    if folder_path:
+    # Mở hộp thoại để chọn thư mục, với thư mục mặc định là client_data
+    folder_path = filedialog.askdirectory(title="Chọn thư mục để gửi", initialdir="client_data")
+
+    # Kiểm tra xem thư mục có nằm trong thư mục client_data không
+    if folder_path and os.path.abspath(folder_path).startswith(os.path.abspath("client_data")):
         # Lấy tên của thư mục từ đường dẫn
         folder_name = get_folder_name(folder_path)
         
@@ -80,7 +82,7 @@ def on_upload_folder_button_click():
         
         print(f"Đã gửi thư mục {folder_name} lên server.")
     else:
-        print("Không có thư mục nào được chọn.")
+        messagebox.showerror("Error", "Chỉ có thể chọn folder trong thư mục client_data.")
 
 def send_file(file_path):
     send_message(f"{FILE_UPLOAD_FILE_MESSAGE} {file_path.split('/')[-1]}")
@@ -291,7 +293,7 @@ def show_file_buttons():
     bg="green", fg="white", font=("Arial", 12))
     
     upload_folder_button = Button(file_window, text="Upload Folder", command=on_upload_folder_button_click,
-    bg="green", fg="white", font=("Arial", 12))
+    bg="pink", fg="white", font=("Arial", 12))
     
     download_button = Button(file_window, text="Download File",
     command=on_download_button_click, bg="blue", fg="white", font=("Arial", 12))
@@ -315,11 +317,13 @@ def show_hide_password():
 # Nút Upload
 def on_upload_button_click():
     file_path = filedialog.askopenfilename(
-        title="Chọn file để gửi")  # Chọn file từ máy tính
-    if file_path:
+        title="Chọn file để gửi", initialdir="client_data")  # Chọn file từ máy tính
+
+    # Kiểm tra xem file có được chọn và file có nằm trong thư mục client_data không
+    if file_path and os.path.abspath(file_path).startswith(os.path.abspath("client_data")):
         send_file(file_path)  # Gửi file đã chọn lên server
     else:
-        print("Không có file nào được chọn.")
+        messagebox.showerror("Error", "Chỉ có thể chọn file trong thư mục client_data.")
 
 # Nút Download
 def on_download_button_click():
