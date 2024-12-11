@@ -26,12 +26,15 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server.bind(ADDR)
 
-# File hoạt động của server
+#File hoạt động của server
+log_directory = "server_data/PRIVATE"
+os.makedirs(log_directory, exist_ok=True)
+log_file_path = os.path.join(log_directory, "server_log.txt")
 logging.basicConfig(
-    filename="server_log.txt",  # Đường dẫn đến file lưu log
-    level=logging.INFO,         # Mức độ log: INFO, WARNING, ERROR
-    format="%(asctime)s - %(levelname)s - %(message)s",  # Định dạng log, bao gồm thời gian
-    filemode="a"
+    filename=log_file_path,  # Sử dụng đường dẫn đầy đủ
+    level=logging.INFO,      # Mức độ log
+    format="%(asctime)s - %(levelname)s - %(message)s",  # Định dạng log
+    filemode="a"             # Append mode (ghi thêm vào file)
 )
 
 # Folder của server
@@ -50,15 +53,21 @@ connected_clients = 0  # Biến đếm số lượng kết nối
 ##################################################################################################################################
 # Đăng nhập 
 def create_or_load_user_db():
-    file_name = "user_data.xlsx"
+    # Đường dẫn đến thư mục PRIVATE
+    os.makedirs(private_folder, exist_ok=True)  # Tạo thư mục nếu chưa tồn tại
+
+    # Đường dẫn đầy đủ đến file user_data.xlsx
+    file_name = os.path.join(private_folder, "user_data.xlsx")
+
     try:
         if not os.path.exists(file_name):
             # Tạo file mới và thêm tiêu đề
             wb = Workbook()
             sheet = wb.active
-            sheet.append(["Username", "Password"])
-            wb.save(file_name)
+            sheet.append(["Username", "Password"])  # Thêm tiêu đề
+            wb.save(file_name)  # Lưu file
         else:
+            # Mở file nếu đã tồn tại
             wb = load_workbook(file_name)
         return wb
     except Exception as e:
@@ -67,8 +76,13 @@ def create_or_load_user_db():
 
 def register(username, password):
     """
-    Đăng ký tài khoản, lưu vào file Excel
+    Đăng ký tài khoản, lưu vào file Excel trong thư mục PRIVATE.
     """
+    # Đường dẫn tới file trong thư mục PRIVATE
+    os.makedirs(private_folder, exist_ok=True)  # Đảm bảo thư mục tồn tại
+    file_name = os.path.join(private_folder, "user_data.xlsx")
+
+    # Tải hoặc tạo file Excel
     wb = create_or_load_user_db()
     sheet = wb.active
 
@@ -77,15 +91,23 @@ def register(username, password):
         if row[0] == username:
             print("Tài khoản đã tồn tại.")
             return False
+
     # Nếu không tồn tại, thêm tài khoản mới vào file
     sheet.append([username, password])
-    wb.save("user_data.xlsx")
+    wb.save(file_name)  # Lưu vào file với đường dẫn đúng
     print("Đăng ký thành công!")
     return True
+
+
 def login(username, password):
     """
-    Đăng nhập, kiểm tra tài khoản trong file Excel
+    Đăng nhập, kiểm tra tài khoản trong file Excel tại thư mục PRIVATE.
     """
+    # Đường dẫn tới file trong thư mục PRIVATE
+    os.makedirs(private_folder, exist_ok=True)  # Đảm bảo thư mục tồn tại
+    file_name = os.path.join(private_folder, "user_data.xlsx")
+
+    # Tải file Excel
     wb = create_or_load_user_db()
     sheet = wb.active
 
