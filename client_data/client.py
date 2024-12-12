@@ -338,6 +338,11 @@ def create_tree_view(folder_tree):
     tree.heading("#0", text="Folders", anchor="w")
     tree.pack(fill="both", expand=True)
         
+    def download_on():
+        tree_view.destroy()
+        download_button.config(state="normal")
+    tree_view.protocol("WM_DELETE_WINDOW",download_on)    
+    
     # Thêm dữ liệu vào Treeview
     populate_tree(tree, "", folder_tree)
     
@@ -388,6 +393,9 @@ def send_file(file_path):
 #UPLOAD FOLDER
 def on_upload_folder_button_click():
     # Mở hộp thoại để chọn thư mục, với thư mục mặc định là client_data
+    
+    send_message(FILE_UPLOAD_FOLDER_MESSAGE)
+    
     folder_path = filedialog.askdirectory(title="Chọn thư mục để gửi", initialdir="client_data")
 
     if folder_path:  # Người dùng đã chọn một thư mục
@@ -395,7 +403,7 @@ def on_upload_folder_button_click():
         if os.path.abspath(folder_path).startswith(os.path.abspath("client_data")):
             # Lấy tên của thư mục từ đường dẫn
             folder_name = get_folder_name(folder_path)
-            
+                        
             # Gửi tên thư mục lên server trước
             send_message(folder_name)  # Giả định hàm này gửi tên folder lên server
             
@@ -415,7 +423,19 @@ def send_folder(folder_path):
     for root, dirs, files in os.walk(folder_path):
         for file_name in files:
             file_path = os.path.join(root, file_name)
-            send_file(file_path)
+            #send_file(file_path)
+            send_message(file_name)
+            file_length = os.path.getsize(file_path)
+            send_length = str(file_length).encode(FORMAT)
+            send_length += b' ' * (HEADER - len(send_length))
+            client.send(send_length)
+            with open(file_path, "rb") as file:
+                while True: 
+                    file_data = file.read(1024)
+                    if not file_data:
+                        break
+                    client.send(file_data)
+                    
             print(f"Đang gửi file: {file_name}")
             messagebox.showinfo("Upload", f"Đang gửi file: {file_name}")
     print(f"Tất cả các file trong thư mục {folder_path} đã được gửi.")
@@ -452,32 +472,55 @@ def on_upload_button_click():
 def show_file_buttons():
     root.quit()
     root.destroy()
+    
     global file_window 
+    
     file_window =  Tk()
-    file_window.title("Download\\Upload File")
-    file_window.geometry("400x250")
+    file_window.title("Client Interface")
+    file_window.geometry("925x500+300+200")
+    file_window.configure(bg="#c1efff")
     
     global download_button
     global upload_file_button
     global upload_folder_button
         
-    # Nút Upload và Download chỉ hiển thị khi đăng nhập thành công
-    upload_file_button = Button(file_window, text="Upload File", command=on_upload_button_click,
-    bg="green", fg="white", font=("Arial", 12))
-    
-    upload_folder_button = Button(file_window, text="Upload Folder", command=on_upload_folder_button_click,
-    bg="pink", fg="white", font=("Arial", 12))
-    
-    download_button = Button(file_window, text="Download File",
-    command=on_download_button_click, bg="blue", fg="white", font=("Arial", 12))
-    
-    close_button = Button(file_window, text="Close Connection",
-                      command=close_connection_file_window, bg="red", fg="white", font=("Arial", 12))
-    
-    upload_file_button.grid(row=0, column=0, pady=10)
-    upload_folder_button.grid(row=1, column=0, pady=10)
-    download_button.grid(row=2, column=0, pady=10)
-    close_button.grid(row=3, column=0, pady=10)
+    # frame chatchat
+    chat_frame = Frame(file_window, bg="#c1efff", bd=3, relief="solid")
+    chat_frame.place(relx=0.05, rely=0.1, relwidth=0.9, relheight=0.6)
+
+    chat_box = Text(chat_frame, bg="#f1f1f1", fg="black", font=("Arial", 14),wrap=WORD)
+    chat_box.place(relx=0,relheight=1,relwidth=1)
+
+    scrollbar = ttk.Scrollbar(chat_frame,orient=VERTICAL, command=chat_box.yview)
+    scrollbar.place(relx=0.98,rely=0.004,relheight=0.99,relwidth=0.02)
+    chat_box.config(yscrollcommand=scrollbar.set)
+
+    # frame nút
+    input_frame = Frame(file_window, bg="#c1efff")
+    input_frame.place(relx=0.05, rely=0.72, relwidth=0.9, relheight=0.275)
+
+    entry_message = Text(input_frame,bg="#f1f1f1", font=("Arial", 14),wrap=WORD, bd=3, relief="solid")
+    entry_message.place(relx=0, rely=0.4, relwidth=0.70, relheight=0.5)
+
+    scrollbar_chat = ttk.Scrollbar(input_frame,orient=VERTICAL, command=entry_message.yview)
+    scrollbar_chat.place(relx=0.68,rely=0.42,relwidth=0.015,relheight=0.45)
+    entry_message.config(yscrollcommand=scrollbar_chat.set)
+        
+    send_message_button = Button(input_frame, text="Send", bg="#84a3ff", fg="black", font = ("Helvetica", 16, "bold"))
+    send_message_button.place(relx=0.75, rely=0.5, relwidth=0.2, relheight=0.3)
+
+    close_button = Button(input_frame, text="Close connection",command=close_connection_file_window, bg="#3b7097", fg="black", font=("Helvetica", 16, "bold"))
+    close_button.place(relx=0, rely=0, relwidth=0.22, relheight=0.3)
+
+    download_button = Button(input_frame, text="Download",command=on_download_button_click, bg="#cde4ad", fg="black",font = ("Helvetica", 16, "bold"))
+    download_button.place(relx=0.26, rely=0, relwidth=0.22, relheight=0.3)
+
+    upload_file_button = Button(input_frame, text="Upload file",command=on_upload_button_click, bg="#97dbae", fg="black",font = ("Helvetica", 16, "bold"))
+    upload_file_button.place(relx=0.52, rely=0, relwidth=0.22, relheight=0.3)
+
+    upload_folder_button = Button(input_frame, text="Upload folder",command=on_upload_folder_button_click, bg="#78d1d2", fg="black",font = ("Helvetica", 16, "bold"))
+    upload_folder_button.place(relx=0.78, rely=0, relwidth=0.22, relheight=0.3)
+
     file_window.mainloop()
 ##################################################################################################################################
 
