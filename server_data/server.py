@@ -18,6 +18,7 @@ FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
 SERVER = "0.0.0.0"
 #SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
+FILE_CANCEL_REQUEST = "!CANCEL_DOWNLOAD"
 
 all_connections = []
 
@@ -210,6 +211,17 @@ def handle_download_file(conn,addr,msg):
                     if not file_data:
                         break
                     conn.sendall(file_data)
+                    
+                    conn.settimeout(0.05)  # Thiết lập thời gian chờ ngắn
+                    try:
+                        cancel_signal = conn.recv(HEADER).decode(FORMAT).strip()
+                        if FILE_CANCEL_REQUEST in cancel_signal:
+                            logging.info(f"Download cancelled by client {addr} for file \"{filename}\".")
+                            return
+                    except socket.timeout:
+                        pass  # Không có tín hiệu hủy, tiếp tục gửi
+                
+                    
             logging.info(f"Download Successful: \"{filename}\" from client {addr}")
         else:
             conn.send("File not found.".encode(FORMAT))
@@ -366,29 +378,6 @@ def handle_client(conn, addr):
 
     try:
         while True:
-                # Nhận chiều dài thông điệp
-                # msg_length = conn.recv(HEADER)
-                # if not msg_length:
-                #     break
-                
-                # # Nếu msg_length là byte, chúng ta chỉ decode khi chắc chắn đó là chuỗi văn bản
-                # try:
-                #     msg_length = msg_length.decode(FORMAT)
-                # except UnicodeDecodeError:
-                #     # Nếu có lỗi giải mã, có thể đó là dữ liệu nhị phân, chúng ta sẽ bỏ qua
-                #     logging.error(f"Received non-text data, skipping decoding.")
-                #     break
-                
-                # msg_length = int(msg_length)  # Chuyển đổi chiều dài thông điệp thành số
-                # msg = conn.recv(msg_length)
-
-                # # Nếu thông điệp không thể giải mã được
-                # try:
-                #     msg = msg.decode(FORMAT)
-                # except UnicodeDecodeError:
-                #     logging.error(f"Received corrupted data: {msg[:50]}...")
-                #     break
-                
                 msg = receive_message(conn)
                 
                 if msg == DISCONNECT_MESSAGE:
