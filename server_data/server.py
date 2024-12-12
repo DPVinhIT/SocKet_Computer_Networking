@@ -19,7 +19,6 @@ FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
 SERVER = "0.0.0.0"
 #SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
-FILE_CANCEL_REQUEST = "!CANCEL_DOWNLOAD"
 
 all_connections = []
 
@@ -203,15 +202,6 @@ def handle_download_file(conn,addr,msg):
                     if not file_data:
                         break
                     conn.sendall(file_data)
-                    
-                    conn.settimeout(0.05)  # Thiết lập thời gian chờ ngắn
-                    try:
-                        cancel_signal = conn.recv(HEADER).decode(FORMAT).strip()
-                        if FILE_CANCEL_REQUEST in cancel_signal:
-                            logging.info(f"Download cancelled by client {addr} for file \"{filename}\".")
-                            break
-                    except socket.timeout:
-                        pass  # Không có tín hiệu hủy, tiếp tục gửi
                        
             logging.info(f"Download Successful: \"{filename}\" from client {addr}")
         else:
@@ -359,10 +349,10 @@ def handle_data(conn):
 # XỬ LÍ CLIENT
 def handle_client(conn, addr):
     global connected_clients
-    chat_box.insert(END,current_time() + f": [NEW CONNECTION] {addr} connected.\n","green")
+    insert_chat_box(f"[NEW CONNECTION] {addr} connected.\n","green")
     
     connected_clients += 1
-    chat_box.insert(END,current_time() + f": [ACTIVE CONNECTIONS] {connected_clients} active connections.\n","green")
+    insert_chat_box(f"[ACTIVE CONNECTIONS] {connected_clients} active connections.\n","green")
     logging.info(f"Connect from client {addr}")
 
     logged_in = False  # Trạng thái chưa đăng nhập
@@ -434,8 +424,8 @@ def handle_client(conn, addr):
         conn.close()
         connected_clients -= 1
         logging.info(f"!!Disconnect from client {addr}")
-        chat_box.insert(END,current_time()+ f": [DISCONNECT] client {addr} disconnect\n","red")
-        chat_box.insert(END,current_time()+ f": [ACTIVE CONNECTIONS] {connected_clients} active connections.\n","green")
+        insert_chat_box(f"[DISCONNECT] client {addr} disconnect\n","red")
+        insert_chat_box(f"[ACTIVE CONNECTIONS] {connected_clients} active connections.\n","green")
 
 ##################################################################################################################################
 # GIAO DIỆN
@@ -444,23 +434,30 @@ def clear_text_box():
     chat_box.delete(1.0, END)
     chat_box.config(state="disabled")
     
+def insert_chat_box(str,color):
+    chat_box.config(state="normal")
+    chat_box.insert(END,current_time() + ": " + str,color)
+    chat_box.config(state="disabled")
+    
 def current_time():
-    cur_time = time.strftime("%d/%m/%Y %H:%M:%S",time.localtime())
+    cur_time = time.strftime("[%d/%m/%Y %H:%M:%S]",time.localtime())
     return str(cur_time)
 
 def list_all_connecting():
-    chat_box.config(state="normal")
     if not all_connections:
-        chat_box.insert(END,current_time()+": Không có kết nối\n","red")
+        insert_chat_box("Không có kết nối\n","red")
     else: 
-        chat_box.insert(END,current_time()+f": Có {connected_clients} client đang kết nối là:\n","green")
+        insert_chat_box(f"Có {connected_clients} client đang kết nối là:\n","green")
         for conn in all_connections:
             try:
                 addr=conn.getpeername()
+                chat_box.config(state="normal")
                 chat_box.insert(END,f" -Client {addr} đang kết nối\n","blue")
+                chat_box.config(state="normal")
             except Exception as e:
+                chat_box.config(state="normal")
                 chat_box.insert(END,f" -Lỗi khi lấy thông tin kết nối: {e}\n","blue")
-    chat_box.config(state="disabled")
+                chat_box.config(state="disabled")
   
 def closing_window():
     if messagebox.askokcancel("Thoát", "Bạn có muốn ngắt kết nối ??"):
@@ -492,9 +489,9 @@ def start_server():
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind(ADDR)
     
-    chat_box.insert(END,current_time()+": [STARTING] Server is starting...\n","green")
+    insert_chat_box("[STARTING] Server is starting...\n","green")
     server.listen()
-    chat_box.insert(END,current_time()+f": [LISTENING] Server is listening on {SERVER}\n","green")
+    insert_chat_box(f"[LISTENING] Server is listening on {SERVER}\n","green")
     logging.info("[Server Start!!]") #Ghi vào file log
     
     show_connecting_button.config(state="normal")
@@ -517,7 +514,7 @@ def server_listen():
 def end_server():
     stop_event.set()  # Kích hoạt sự kiện dừng
     server.close()    # Đóng server
-    chat_box.insert(tk.END, current_time() + ": [STOPPED] Server đã đóng.\n", "red")
+    insert_chat_box("[STOPPED] Server đã đóng.\n", "red")
 
     show_connecting_button.config(state="disabled")
     end_server_button.config(state="disabled")
@@ -559,7 +556,7 @@ count_time()
 show_quantity_connected()
 
 # Text box for information
-chat_box = Text(info_frame, bg="#ecf0f1", fg="#2c3e50", font=("Arial", 14), wrap=WORD)
+chat_box = Text(info_frame, bg="#ecf0f1", fg="#2c3e50", font=("Arial", 14), wrap=WORD,state="disabled")
 chat_box.place(relx=0, relheight=1, relwidth=1)
 chat_box.tag_configure("red", foreground="red")
 chat_box.tag_configure("green", foreground="green")
