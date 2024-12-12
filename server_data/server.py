@@ -119,6 +119,31 @@ def login(username, password):
     print("Đăng nhập thất bại!")
 ##################################################################################################################################
 # KẾT NỐI
+def send_message(conn,msg):
+    message = msg.encode(FORMAT)
+    msg_length = len(message)
+    send_length = str(msg_length).encode(FORMAT)
+    send_length += b' ' * (HEADER - len(send_length))
+    conn.send(send_length)
+    conn.send(message)
+
+def receive_message(conn):
+    msg_length = conn.recv(HEADER)
+    if not msg_length:
+        return None
+    try:
+        msg_length = msg_length.decode(FORMAT)
+    except Exception as e:
+        print(f"Lỗi: {e}")
+        logging.error(f"Received non-text data, skipping decoding.")
+    msg_length = int(msg_length)  # Chuyển đổi chiều dài thông điệp thành số
+    msg = conn.recv(msg_length)
+    try:
+        msg = msg.decode(FORMAT)
+    except Exception as e:
+        print(f"Lỗi: {e}")
+    return msg
+    
 def server_listen():
     while True:
         conn, addr = server.accept()
@@ -265,10 +290,7 @@ def handle_file_upload(conn, addr, msg):
 # CLIENT UPLOAD FOLDER
 def handle_folder_upload(conn, addr):
     try:
-        # Nhận độ dài tên thư mục
-        folder_name_length = int(conn.recv(HEADER).decode(FORMAT))
-        folder_name = conn.recv(folder_name_length).decode(FORMAT)  # Nhận tên thư mục
-
+        folder_name = receive_message(conn)
         # Tạo thư mục trong PUBLIC
         folder_path2 = os.path.join(public_folder, folder_name)
         if not os.path.exists(folder_path2):
@@ -277,12 +299,12 @@ def handle_folder_upload(conn, addr):
         logging.info(f"Starting to receive folder: {folder_name} from client {addr}")
 
         # Nhận số lượng file trong thư mục
-        #num_files_msg = int(conn.recv(HEADER).decode(FORMAT))
-        #num_files = conn.recv(num_files_msg).decode(FORMAT)
-        num_files = int(conn.recv(HEADER).decode(FORMAT))
+        # num_files_msg = int(conn.recv(HEADER).decode(FORMAT))
+        # num_files = conn.recv(num_files_msg).decode(FORMAT)
         
-        print(num_files)
-        
+        num_files = receive_message(conn)
+        num_files = int(num_files)
+                        
         for _ in range(num_files):
             # Nhận thông tin file
             file_name_length = int(conn.recv(HEADER).decode(FORMAT))
@@ -291,12 +313,12 @@ def handle_folder_upload(conn, addr):
             # Nhận và lưu file
             file_path = os.path.join(folder_path2, file_name)
             file_length = int(conn.recv(HEADER).decode(FORMAT))
-            total_received = 0
 
             file_directory = os.path.dirname(file_path)
             if not os.path.exists(file_directory):
                 os.makedirs(file_directory)
-
+                
+            total_received = 0
             with open(file_path, "wb") as file:
                 while total_received < file_length:
                     file_data = conn.recv(1024)
@@ -344,28 +366,31 @@ def handle_client(conn, addr):
 
     try:
         while True:
-            # Nhận chiều dài thông điệp
-                msg_length = conn.recv(HEADER)
-                if not msg_length:
-                    break
+                # Nhận chiều dài thông điệp
+                # msg_length = conn.recv(HEADER)
+                # if not msg_length:
+                #     break
                 
-                # Nếu msg_length là byte, chúng ta chỉ decode khi chắc chắn đó là chuỗi văn bản
-                try:
-                    msg_length = msg_length.decode(FORMAT)
-                except UnicodeDecodeError:
-                    # Nếu có lỗi giải mã, có thể đó là dữ liệu nhị phân, chúng ta sẽ bỏ qua
-                    logging.error(f"Received non-text data, skipping decoding.")
-                    break
+                # # Nếu msg_length là byte, chúng ta chỉ decode khi chắc chắn đó là chuỗi văn bản
+                # try:
+                #     msg_length = msg_length.decode(FORMAT)
+                # except UnicodeDecodeError:
+                #     # Nếu có lỗi giải mã, có thể đó là dữ liệu nhị phân, chúng ta sẽ bỏ qua
+                #     logging.error(f"Received non-text data, skipping decoding.")
+                #     break
                 
-                msg_length = int(msg_length)  # Chuyển đổi chiều dài thông điệp thành số
-                msg = conn.recv(msg_length)
+                # msg_length = int(msg_length)  # Chuyển đổi chiều dài thông điệp thành số
+                # msg = conn.recv(msg_length)
 
-                # Nếu thông điệp không thể giải mã được
-                try:
-                    msg = msg.decode(FORMAT)
-                except UnicodeDecodeError:
-                    logging.error(f"Received corrupted data: {msg[:50]}...")
-                    break
+                # # Nếu thông điệp không thể giải mã được
+                # try:
+                #     msg = msg.decode(FORMAT)
+                # except UnicodeDecodeError:
+                #     logging.error(f"Received corrupted data: {msg[:50]}...")
+                #     break
+                
+                msg = receive_message(conn)
+                
                 if msg == DISCONNECT_MESSAGE:
                     break
 
