@@ -1,8 +1,9 @@
 import socket
 import os
 # from tkinter import Tk, Button, filedialog, Label, Entry, StringVar, messagebox, ttk, Toplevel
-from tkinter import*
-from tkinter import ttk, Toplevel, messagebox, filedialog, StringVar
+import tkinter as tk
+from tkinter import  messagebox, ttk, Frame, Text, Button, VERTICAL, WORD
+from tkinter import  Toplevel, Label, filedialog, StringVar, Entry, END, IntVar, Checkbutton
 import tkinter.simpledialog as simpledialog
 import time
 PORT = 12345
@@ -24,8 +25,6 @@ ADDR = (SERVER, PORT)
 folder_path = "client_data"
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)
-
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 ##################################################################################################################################
 # Đăng nhập
@@ -70,15 +69,6 @@ def show_hide_password():
         password_entry.config(show='*')  # Ẩn mật khẩu
 
 ##################################################################################################################################
-# KẾT NỐI
-def connect_to_server():
-    try:
-        client.connect(ADDR)
-        print("Kết nối đến server thành công.")
-    except Exception as e:
-        print(f"Không thể kết nối đến server: {e}")
-        return False
-    return True
 
 def send_message(msg):
     message = msg.encode(FORMAT)
@@ -92,7 +82,16 @@ def receive_message():
     return client.recv(2048).decode(FORMAT)
 
 #Dừng kết nối 
+def check_client():
+    if client.fileno() == -1:  
+        messagebox.showerror("DISCONNECT","Socket đã bị đóng!!")
+        client.close()
+        client_window.quit()
+        client_window.destroy()
+    client_window.after(300, check_client)
+
 def close_connection():
+    
     if client.fileno() != -1:  # Kiểm tra nếu socket vẫn còn hoạt động
         # Gửi tin nhắn ngắt kết nối đến server
         send_message(DISCONNECT_MESSAGE)
@@ -107,8 +106,6 @@ def closing_window():
     # Hiển thị hộp thoại xác nhận 
     if messagebox.askokcancel("Thoát", "Bạn có muốn ngắt kết nối ??"):
         close_connection()
-        root.quit()
-        root.destroy()  # Đóng cửa sổ
 
 def close_connection_file_window():
     if client.fileno() != -1:  # Kiểm tra nếu socket vẫn còn hoạt động
@@ -118,15 +115,13 @@ def close_connection_file_window():
         print("Kết nối đã được đóng.")
     else:
         print("Kết nối đã bị đóng trước đó.")
-    file_window.quit()  # Đóng cửa sổ Tkinter sau khi ngắt kết nối
-    file_window.destroy()
+    client_window.quit()  # Đóng cửa sổ Tkinter sau khi ngắt kết nối
+    client_window.destroy()
     
 def closing_file_window():
     # Hiển thị hộp thoại xác nhận 
     if messagebox.askokcancel("Thoát", "Bạn có muốn ngắt kết nối ??"):
         close_connection_file_window()
-        file_window.quit()
-        file_window.destroy()  # Đóng cửa sổ
 ##################################################################################################################################
 # DOWNLOAD 
 
@@ -176,7 +171,7 @@ def download_file(filename, tree_view):
         download_window1 = Toplevel(tree_view)
         download_window1.title(f"Download file: \"{file_name}\"")
         
-        download_label = Label(download_window1, text=f"Đang tải xuống \"{file_name}\"...")
+        download_label =Label(download_window1, text=f"Đang tải xuống \"{file_name}\"...")
         download_label.pack(padx=10, pady=10)
         
         download_percent = Label(download_window1, text="")
@@ -236,9 +231,9 @@ def download_file(filename, tree_view):
             total_received = 0
             try:
                 while total_received < file_size:
-                    # while is_paused[0]:  # Tạm dừng nếu trạng thái Pause
-                    #     download_window1.update()
-                    #     time.sleep(0.1)
+                    while is_paused[0]:  # Tạm dừng nếu trạng thái Pause
+                        download_window1.update()
+                        time.sleep(0.1)
 
                     file_data = client.recv(1024)
                     if not file_data:
@@ -251,7 +246,7 @@ def download_file(filename, tree_view):
                         print(f"File \"{file_name}\" đã bị hủy và xóa.")
                         client.send(FILE_CANCEL_REQUEST.encode(FORMAT)+b" "*(HEADER-len(FILE_CANCEL_REQUEST)))
                         return
-                                        
+                                   
                     total_received += len(file_data)
                     file.write(file_data)
                     progress["value"] = total_received
@@ -333,9 +328,8 @@ def create_tree_view(folder_tree):
     Tạo giao diện hiển thị Treeview từ cấu trúc cây.
     """
     download_button.config(state="disabled")
-    tree_view = Toplevel(file_window)  # Tạo cửa sổ con cho Treeview
+    tree_view = Toplevel(client_window)  # Tạo cửa sổ con cho Treeview
     tree_view.title("Folder Tree View")
-    
     # Tạo Treeview
     tree = ttk.Treeview(tree_view)  # Lưu ý: tree nên được tạo trong tree_view chứ không phải root
     tree.heading("#0", text="Folders", anchor="w")
@@ -471,24 +465,51 @@ def on_upload_button_click():
 # Xử lí
 
 ##################################################################################################################################
-# Giao diện
+# Giao diện 
+def current_time():
+    cur_time = time.strftime("%d-%m-%Y %H:%M:%S",time.localtime())
+    return str(cur_time)
+
+seconds = 0 
+
 def show_file_buttons():
     root.quit()
     root.destroy()
     
-    global file_window 
+    global client_window 
     
-    file_window =  Tk()
-    file_window.title("Client Interface")
-    file_window.geometry("925x500+300+200")
-    file_window.configure(bg="#c1efff")
-    
+    client_window = tk.Tk()
+    client_window.title("Client Interface")
+    client_window.geometry("925x500+300+200")
+    client_window.configure(bg="#c1efff")
+        
     global download_button
     global upload_file_button
     global upload_folder_button
-        
-    # frame chatchat
-    chat_frame = Frame(file_window, bg="#c1efff", bd=3, relief="solid")
+    
+    # frame time 
+    time_frame = Frame(client_window, bg="#c1efff")
+    time_frame.place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.05)
+    # Hàm tính thời gian
+    def current_datetime():
+        show_current_time.config(text=f"{current_time()}")
+        client_window.after(1000, current_datetime)
+    def count_time():
+        global seconds 
+        seconds += 1
+        show_runtime.config(text=f"- Runtime: {seconds // 3600:02}:{(seconds % 3600) // 60:02}:{seconds % 60:02}")
+        client_window.after(1000, count_time)
+    # Label thời gian hiển thị
+    show_current_time = Label(time_frame, text="", fg="black",bg="#c1efff",anchor="w", font=("Arial", 14, "bold"))
+    show_current_time.place(relx=0, rely=0, relheight=1, relwidth=0.25)
+    show_runtime = Label(time_frame, text="", fg="black",bg="#c1efff",anchor="w", font=("Arial", 14, "bold"))
+    show_runtime.place(relx= 0.23, rely=0, relheight=1, relwidth=0.25)
+    show_server = Label(time_frame,text = f"- Đang kết nối với server [{SERVER} : {PORT}]", fg="black",bg="#c1efff",anchor="w", font=("Arial", 14, "bold"))
+    show_server.place(relx= 0.46, rely=0, relheight=1, relwidth=1)
+    current_datetime()
+    count_time()
+    # frame chat
+    chat_frame = Frame(client_window, bg="#c1efff", bd=3, relief="solid")
     chat_frame.place(relx=0.05, rely=0.1, relwidth=0.9, relheight=0.6)
 
     chat_box = Text(chat_frame, bg="#f1f1f1", fg="black", font=("Arial", 14),wrap=WORD)
@@ -499,7 +520,7 @@ def show_file_buttons():
     chat_box.config(yscrollcommand=scrollbar.set)
 
     # frame nút
-    input_frame = Frame(file_window, bg="#c1efff")
+    input_frame = Frame(client_window, bg="#c1efff")
     input_frame.place(relx=0.05, rely=0.72, relwidth=0.9, relheight=0.275)
 
     entry_message = Text(input_frame,bg="#f1f1f1", font=("Arial", 14),wrap=WORD, bd=3, relief="solid")
@@ -524,12 +545,24 @@ def show_file_buttons():
     upload_folder_button = Button(input_frame, text="Upload folder",command=on_upload_folder_button_click, bg="#78d1d2", fg="black",font = ("Helvetica", 16, "bold"))
     upload_folder_button.place(relx=0.78, rely=0, relwidth=0.22, relheight=0.3)
 
-    file_window.mainloop()
+    client_window.after(300,check_client)
+
+    client_window.mainloop()
 ##################################################################################################################################
+# KẾT NỐI
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def connect_to_server():
+    try:
+        client.connect(ADDR)
+        print("Kết nối đến server thành công.")
+    except Exception as e:
+        print(f"Lỗi: {e}")
+        return False
+    return True
 
 # Giao diện Tkinter
-root = Tk()
-root.title("File Upload/Download")
+root = tk.Tk()
+root.title("LOGINLOGIN")
 root.geometry("925x500+300+200")
 root.configure(bg="#fff")
 root.resizable(False,False)
@@ -537,7 +570,7 @@ root.resizable(False,False)
 username_var = StringVar()
 password_var = StringVar()
 
-img= PhotoImage(file = 'login.png')
+img= tk.PhotoImage(file = 'login.png')
 image_login= Label(root,image=img,bg='white').place(x=50,y=50)
 
 frame = Frame(root,width=350,height=350, bg='white')
@@ -601,5 +634,7 @@ Label(frame,text="Show password",fg='black',bg='white',font=('Microsoft YaHei UI
 # Kết nối đến server
 if not connect_to_server():
     root.quit()
+    messagebox.showerror("Lỗi",f"Không thể kết nối tới server {SERVER}")
+    root.destroy()
 
 root.mainloop()
