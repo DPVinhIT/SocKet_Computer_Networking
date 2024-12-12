@@ -15,6 +15,7 @@ FILE_LIST_REQUEST = "!LIST"
 FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
 REGISTER_REQUEST = "!REGISTER"
 LOGIN_REQUEST = "!LOGIN"
+FILE_CANCEL_REQUEST = "!CANCEL_DOWNLOAD"
 
 #SERVER = "192.168.1.97"  # Địa chỉ IP của server
 SERVER = socket.gethostbyname(socket.gethostname()) #Lấy ip của máy vì chạy cùng 1 máy
@@ -204,6 +205,7 @@ def download_file(filename, tree_view):
                 is_cancelled[0] = True
                 download_label.config(text=f"Đang hủy tải file \"{file_name}\"...")
                 messagebox.showinfo("Thông báo", f"Đã hủy tải file \"{file_name}\".") 
+                download_window1.destroy()
 
         # Thêm nút Pause/Resume và Cancel
         button_frame = Frame(download_window1)
@@ -234,21 +236,22 @@ def download_file(filename, tree_view):
             total_received = 0
             try:
                 while total_received < file_size:
-                    if is_cancelled[0]:  # Kiểm tra nếu người dùng hủy tải
-                        file.close()  # Đóng file đang mở
-                        if os.path.exists(file_path):  # Kiểm tra và xóa file
-                            os.remove(file_path)
-                        download_label.config(text=f"Đã hủy tải file \"{file_name}\".")
-                        print(f"File \"{file_name}\" đã bị hủy và xóa.")
-                        return
-
-                    while is_paused[0]:  # Tạm dừng nếu trạng thái Pause
-                        download_window1.update()
-                        time.sleep(0.1)
+                    # while is_paused[0]:  # Tạm dừng nếu trạng thái Pause
+                    #     download_window1.update()
+                    #     time.sleep(0.1)
 
                     file_data = client.recv(1024)
                     if not file_data:
                         break
+                    
+                    if is_cancelled[0]:  # Kiểm tra nếu người dùng hủy tải
+                        file.close()  # Đóng file đang mở
+                        if os.path.exists(file_path):  # Kiểm tra và xóa file
+                            os.remove(file_path)
+                        print(f"File \"{file_name}\" đã bị hủy và xóa.")
+                        client.send(FILE_CANCEL_REQUEST.encode(FORMAT)+b" "*(HEADER-len(FILE_CANCEL_REQUEST)))
+                        return
+                                        
                     total_received += len(file_data)
                     file.write(file_data)
                     progress["value"] = total_received
