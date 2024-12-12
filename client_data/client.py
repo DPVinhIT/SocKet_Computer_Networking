@@ -4,6 +4,7 @@ import os
 from tkinter import*
 from tkinter import ttk, Toplevel, messagebox, filedialog, StringVar
 import tkinter.simpledialog as simpledialog
+import time
 PORT = 12345
 HEADER = 64
 FORMAT = 'utf-8'
@@ -152,7 +153,7 @@ def list_files():
             break
     return data
 
-def download_file(filename,tree_view): 
+def download_file(filename, tree_view):
     """
     Yêu cầu server gửi file về client, chỉ cho phép tải file từ thư mục PUBLIC
     """
@@ -164,7 +165,7 @@ def download_file(filename,tree_view):
 
         # Kiểm tra nếu server trả về thông báo lỗi
         if response == "File not found.":
-            messagebox.askokcancel("Error", "Bạn Không được tải file này! Nguyên nhân do bảo mật hoặc file không tồn tại")
+            messagebox.askokcancel("Error", "Bạn không được tải file này! Nguyên nhân do bảo mật hoặc file không tồn tại")
             return
 
         # Nếu nhận được tên file hợp lệ, tiếp tục nhận kích thước file
@@ -175,14 +176,44 @@ def download_file(filename,tree_view):
         download_window1.title(f"Download file: \"{file_name}\"")
         
         download_label = Label(download_window1, text=f"Đang tải xuống \"{file_name}\"...")
-        download_label.pack(padx = 10, pady = 10)
+        download_label.pack(padx=10, pady=10)
         
-        download_percent = Label(download_window1,text="")
-        download_percent.pack(padx = 10, pady = 10)
+        download_percent = Label(download_window1, text="")
+        download_percent.pack(padx=10, pady=10)
         
-        progress = ttk.Progressbar(download_window1,orient="horizontal",length=350, mode="determinate")
-        progress.pack(padx = 10, pady = 10)
+        progress = ttk.Progressbar(download_window1, orient="horizontal", length=350, mode="determinate")
+        progress.pack(padx=10, pady=10)
         progress["maximum"] = file_size
+
+        # Biến điều khiển Pause, Resume, và Cancel
+        is_paused = [False]
+        is_cancelled = [False]
+
+        def toggle_pause_resume():
+            if is_paused[0]:
+                is_paused[0] = False
+                pause_resume_button.config(text="Pause", command=toggle_pause_resume)
+            else:
+                is_paused[0] = True
+                pause_resume_button.config(text="Resume", command=toggle_pause_resume)
+
+        def cancel_download():
+            # Hiển thị hộp thoại xác nhận
+            confirm = messagebox.askyesno("Xác nhận hủy", f"Bạn có chắc chắn muốn hủy tải file \"{file_name}\" không?")
+            if confirm:
+                is_cancelled[0] = True
+                download_label.config(text=f"Đang hủy tải file \"{file_name}\"...")
+                messagebox.showinfo("Thông báo", f"Đã hủy tải file \"{file_name}\".") 
+
+        # Thêm nút Pause/Resume và Cancel
+        button_frame = Frame(download_window1)
+        button_frame.pack(pady=10)
+
+        pause_resume_button = Button(button_frame, text="Pause", command=toggle_pause_resume)
+        pause_resume_button.pack(side="left", padx=10)
+
+        cancel_button = Button(button_frame, text="Cancel", command=cancel_download)
+        cancel_button.pack(side="left", padx=10)
 
         print(f"Đang tải xuống file: {file_name}, kích thước: {file_size} bytes")
 
@@ -190,29 +221,55 @@ def download_file(filename,tree_view):
         if not os.path.exists('client_data'):
             os.makedirs('client_data')
 
+        # Kiểm tra và đổi tên tệp nếu trùng
+        base_name, extension = os.path.splitext(file_name)
+        counter = 1
+        while os.path.exists(os.path.join('client_data', file_name)):
+            file_name = f"{base_name}({counter}){extension}"
+            counter += 1
+
         # Mở file và bắt đầu tải xuống
-        with open(os.path.join(folder_path, file_name), "wb") as file:
+        file_path = os.path.join('client_data', file_name)  # Đường dẫn đầy đủ của file
+        with open(file_path, "wb") as file:
             total_received = 0
             try:
                 while total_received < file_size:
+                    if is_cancelled[0]:  # Kiểm tra nếu người dùng hủy tải
+                        file.close()  # Đóng file đang mở
+                        if os.path.exists(file_path):  # Kiểm tra và xóa file
+                            os.remove(file_path)
+                        download_label.config(text=f"Đã hủy tải file \"{file_name}\".")
+                        print(f"File \"{file_name}\" đã bị hủy và xóa.")
+                        return
+
+                    while is_paused[0]:  # Tạm dừng nếu trạng thái Pause
+                        download_window1.update()
+                        time.sleep(0.1)
+
                     file_data = client.recv(1024)
                     if not file_data:
                         break
                     total_received += len(file_data)
                     file.write(file_data)
                     progress["value"] = total_received
-                    download_percent.config(text=f"{round((progress["value"] / progress['maximum']) * 100, 2)} %")
+                    download_percent.config(text=f"{round((progress['value'] / progress['maximum']) * 100, 2)} %")
                     download_window1.update()
                 if total_received == file_size:
-                    download_label.config(text = f"File \"{file_name}\" đã được tải xuống thành công.")
+                    download_label.config(text=f"File \"{file_name}\" đã được tải xuống thành công.")
                     print(f"File {file_name} đã được tải xuống thành công.")
                 else:
                     print(f"Lỗi: Chỉ nhận được {total_received} / {file_size} bytes.")
-
+                    if os.path.exists(file_path):  # Xóa file nếu tải không đủ
+                        os.remove(file_path)
             except Exception as e:
+                if os.path.exists(file_path):  # Xóa file nếu có lỗi xảy ra
+                    os.remove(file_path)
                 print(f"Lỗi khi tải file: {e}")
     except Exception as e:
         print(f"Lỗi {e}")
+
+
+
         
 # def parse_folder_tree(data):
 #     """
