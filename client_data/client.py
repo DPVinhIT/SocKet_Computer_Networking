@@ -1,5 +1,7 @@
 import socket
 import os
+import ast
+import threading
 # from tkinter import Tk, Button, filedialog, Label, Entry, StringVar, messagebox, ttk, Toplevel
 import tkinter as tk
 from tkinter import  messagebox, ttk, Frame, Text, Button, VERTICAL, WORD
@@ -16,8 +18,6 @@ FILE_LIST_REQUEST = "!LIST"
 FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
 REGISTER_REQUEST = "!REGISTER"
 LOGIN_REQUEST = "!LOGIN"
-FILE_CANCEL_REQUEST = "!CANCEL_DOWNLOAD"
-
 #SERVER = "192.168.1.97"  # Địa chỉ IP của server
 SERVER = socket.gethostbyname(socket.gethostname()) #Lấy ip của máy vì chạy cùng 1 máy
 ADDR = (SERVER, PORT)
@@ -171,47 +171,21 @@ def download_file(filename, tree_view):
         download_window1 = Toplevel(tree_view)
         download_window1.title(f"Download file: \"{file_name}\"")
         
+        def close_button():
+            insert_chat_box("Không thể đóng cửa sổ khi đang tải file\n","red")
+        
+        download_window1.protocol("WM_DELETE_WINDOW", close_button)
+        
         download_label =Label(download_window1, text=f"Đang tải xuống \"{file_name}\"...")
         download_label.pack(padx=10, pady=10)
-        
+                
         download_percent = Label(download_window1, text="")
         download_percent.pack(padx=10, pady=10)
         
         progress = ttk.Progressbar(download_window1, orient="horizontal", length=350, mode="determinate")
         progress.pack(padx=10, pady=10)
         progress["maximum"] = file_size
-
-        # Biến điều khiển Pause, Resume, và Cancel
-        is_paused = [False]
-        is_cancelled = [False]
-
-        def toggle_pause_resume():
-            if is_paused[0]:
-                is_paused[0] = False
-                pause_resume_button.config(text="Pause", command=toggle_pause_resume)
-            else:
-                is_paused[0] = True
-                pause_resume_button.config(text="Resume", command=toggle_pause_resume)
-
-        def cancel_download():
-            # Hiển thị hộp thoại xác nhận
-            confirm = messagebox.askyesno("Xác nhận hủy", f"Bạn có chắc chắn muốn hủy tải file \"{file_name}\" không?")
-            if confirm:
-                is_cancelled[0] = True
-                download_label.config(text=f"Đang hủy tải file \"{file_name}\"...")
-                messagebox.showinfo("Thông báo", f"Đã hủy tải file \"{file_name}\".") 
-                download_window1.destroy()
-
-        # Thêm nút Pause/Resume và Cancel
-        button_frame = Frame(download_window1)
-        button_frame.pack(pady=10)
-
-        pause_resume_button = Button(button_frame, text="Pause", command=toggle_pause_resume)
-        pause_resume_button.pack(side="left", padx=10)
-
-        cancel_button = Button(button_frame, text="Cancel", command=cancel_download)
-        cancel_button.pack(side="left", padx=10)
-
+ 
         print(f"Đang tải xuống file: {file_name}, kích thước: {file_size} bytes")
 
         # Tạo thư mục client_data nếu chưa có
@@ -231,22 +205,9 @@ def download_file(filename, tree_view):
             total_received = 0
             try:
                 while total_received < file_size:
-                    while is_paused[0]:  # Tạm dừng nếu trạng thái Pause
-                        download_window1.update()
-                        time.sleep(0.1)
-
                     file_data = client.recv(1024)
                     if not file_data:
-                        break
-                    
-                    if is_cancelled[0]:  # Kiểm tra nếu người dùng hủy tải
-                        file.close()  # Đóng file đang mở
-                        if os.path.exists(file_path):  # Kiểm tra và xóa file
-                            os.remove(file_path)
-                        print(f"File \"{file_name}\" đã bị hủy và xóa.")
-                        client.send(FILE_CANCEL_REQUEST.encode(FORMAT)+b" "*(HEADER-len(FILE_CANCEL_REQUEST)))
-                        return
-                                   
+                        break            
                     total_received += len(file_data)
                     file.write(file_data)
                     progress["value"] = total_received
@@ -263,21 +224,10 @@ def download_file(filename, tree_view):
                 if os.path.exists(file_path):  # Xóa file nếu có lỗi xảy ra
                     os.remove(file_path)
                 print(f"Lỗi khi tải file: {e}")
+        download_window1.destroy()        
     except Exception as e:
         print(f"Lỗi {e}")
 
-
-
-        
-# def parse_folder_tree(data):
-#     """
-#     Chuyển đổi chuỗi nhận được từ server thành cấu trúc cây.
-#     """
-#     # Đánh giá chuỗi thành dict (cấu trúc cây)
-#     folder_tree = eval(data)  # Đổi chuỗi thành từ điển
-#     return folder_tree
-
-import ast
 
 def parse_folder_tree(data):
     """
@@ -338,6 +288,7 @@ def create_tree_view(folder_tree):
     def download_on():
         tree_view.destroy()
         download_button.config(state="normal")
+        
     tree_view.protocol("WM_DELETE_WINDOW",download_on)    
     
     # Thêm dữ liệu vào Treeview
@@ -350,9 +301,9 @@ def create_tree_view(folder_tree):
             if not tree.get_children(selected_item):  # Nếu không có phần tử con thì đây là node lá
                 file_to_download = tree.item(selected_item, "text")  # Lấy tên thư mục được chọn
                 file_path = find_path(folder_tree, file_to_download, "")
-                download_file(file_path, tree_view)  # Gọi hàm tải file
-                # Đóng cửa sổ tree_view sau khi chọn file và tải xuống
                 tree_view.destroy()  # Đóng cửa sổ tree_view
+                download_file(file_path, client_window)  # Gọi hàm tải file
+                # Đóng cửa sổ tree_view sau khi chọn file và tải xuống
                 download_button.config(state="normal")
             else:
                 messagebox.showwarning("Warning", "Bạn chỉ có thể chọn file, không phải folder!")
@@ -467,10 +418,15 @@ def on_upload_button_click():
 ##################################################################################################################################
 # Giao diện 
 def current_time():
-    cur_time = time.strftime("%d-%m-%Y %H:%M:%S",time.localtime())
+    cur_time = time.strftime("[%d/%m/%Y %H:%M:%S]",time.localtime())
     return str(cur_time)
 
 seconds = 0 
+
+def insert_chat_box(str,color):
+    chat_box.config(state="normal")
+    chat_box.insert(END,current_time() + ": " + str,color)
+    chat_box.config(state="disabled")
 
 def show_file_buttons():
     root.quit()
@@ -486,6 +442,7 @@ def show_file_buttons():
     global download_button
     global upload_file_button
     global upload_folder_button
+    global chat_box
     
     # frame time 
     time_frame = Frame(client_window, bg="#c1efff")
@@ -512,8 +469,12 @@ def show_file_buttons():
     chat_frame = Frame(client_window, bg="#c1efff", bd=3, relief="solid")
     chat_frame.place(relx=0.05, rely=0.1, relwidth=0.9, relheight=0.6)
 
-    chat_box = Text(chat_frame, bg="#f1f1f1", fg="black", font=("Arial", 14),wrap=WORD)
+    chat_box = Text(chat_frame, bg="#f1f1f1", fg="black", font=("Arial", 14),wrap=WORD,state="disabled")
     chat_box.place(relx=0,relheight=1,relwidth=1)
+    chat_box.tag_configure("red", foreground="red")
+    chat_box.tag_configure("green", foreground="green")
+    chat_box.tag_configure("blue", foreground="blue")
+    chat_box.tag_configure("black",foreground="black")
 
     scrollbar = ttk.Scrollbar(chat_frame,orient=VERTICAL, command=chat_box.yview)
     scrollbar.place(relx=0.98,rely=0.004,relheight=0.99,relwidth=0.02)
