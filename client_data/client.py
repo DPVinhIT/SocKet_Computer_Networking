@@ -2,14 +2,13 @@ import socket
 import os
 import ast
 import threading
-# from tkinter import Tk, Button, filedialog, Label, Entry, StringVar, messagebox, ttk, Toplevel
 import tkinter as tk
 from tkinter import  messagebox, ttk, Frame, Text, Button, VERTICAL, WORD
 from tkinter import  Toplevel, Label, filedialog, StringVar, Entry, END, IntVar, Checkbutton
-import tkinter.simpledialog as simpledialog
 import time
+
 PORT = 12345
-HEADER = 64
+HEADER = 1024
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
 FILE_UPLOAD_FILE_MESSAGE = "!UPLOAD_FILE"
@@ -339,55 +338,61 @@ def send_file(file_path):
 
 ##################################################################################################################################
 #UPLOAD FOLDER
-def on_upload_folder_button_click():
-    # Mở hộp thoại để chọn thư mục, với thư mục mặc định là client_data
-    
-    send_message(FILE_UPLOAD_FOLDER_MESSAGE)
-    
-    folder_path = filedialog.askdirectory(title="Chọn thư mục để gửi", initialdir="client_data")
-
-    if folder_path:  # Người dùng đã chọn một thư mục
-        # Kiểm tra xem thư mục có nằm trong thư mục client_data không
-        if os.path.abspath(folder_path).startswith(os.path.abspath("client_data")):
-            # Lấy tên của thư mục từ đường dẫn
-            folder_name = get_folder_name(folder_path)
-                        
-            # Gửi tên thư mục lên server trước
-            send_message(folder_name)  # Giả định hàm này gửi tên folder lên server
-            
-            # Gửi số lượng file trong thư mục
-            send_message(str(len([f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))])))
-
-            # Sau đó gửi toàn bộ file trong thư mục
-            send_folder(folder_path)
-            
-            messagebox.showinfo("Server", f"Đã gửi thư mục {folder_name} lên server.")
-        else:
-            messagebox.showerror("Error", "Chỉ có thể chọn folder trong thư mục client_data.")
-    else:  # Người dùng không chọn thư mục
-        messagebox.showinfo("Thông báo", "Bạn chưa chọn thư mục nào.")
-
 def send_folder(folder_path):
     for root, dirs, files in os.walk(folder_path):
+        # Gửi thư mục con
+        for dir_name in dirs:
+            relative_folder_path = os.path.relpath(os.path.join(root, dir_name), folder_path)
+            send_message(relative_folder_path)  # Gửi đường dẫn tới thư mục concon
+            send_message("FOLDER")  # Gửi thông tin là folder
+
+        # Gửi tất cả các file trong thư mục hiện tại
         for file_name in files:
             file_path = os.path.join(root, file_name)
-            #send_file(file_path)
-            send_message(file_name)
+            relative_file_path = os.path.relpath(file_path, folder_path)
+            send_message(relative_file_path)  # Gửi đường dẫn file
+            send_message("FILE")  # Gửi thông tin là file
+            
             file_length = os.path.getsize(file_path)
             send_length = str(file_length).encode(FORMAT)
             send_length += b' ' * (HEADER - len(send_length))
-            client.send(send_length)
+            client.send(send_length)  # Gửi kích thước file
+
             with open(file_path, "rb") as file:
-                while True: 
+                while True:
                     file_data = file.read(1024)
                     if not file_data:
                         break
-                    client.send(file_data)
-                    
-            print(f"Đang gửi file: {file_name}")
-            messagebox.showinfo("Upload", f"Đang gửi file: {file_name}")
-    print(f"Tất cả các file trong thư mục {folder_path} đã được gửi.")
+                    client.send(file_data)  # Gửi nội dung file
+            messagebox.showinfo("Upload", f"Đã gửi file: {file_name}")
+
+    # Gửi tín hiệu kết thúc khi đã gửi hết các file
+    send_message("EOF")
     messagebox.showinfo("Upload", f"Tất cả các file trong thư mục {folder_path} đã được gửi.")
+
+def on_upload_folder_button_click():
+    send_message(FILE_UPLOAD_FOLDER_MESSAGE)
+
+    folder_path = filedialog.askdirectory(title="Chọn thư mục để gửi", initialdir="client_data")
+
+    if folder_path:  # Người dùng đã chọn một thư mục
+        try:
+            # Kiểm tra xem thư mục có nằm trong thư mục client_data không
+            if os.path.abspath(folder_path).startswith(os.path.abspath("client_data")):
+                # Lấy tên của thư mục từ đường dẫn
+                folder_name = get_folder_name(folder_path)
+                send_message(folder_name)  # Gửi tên thư mục lên server
+                
+                # Gửi toàn bộ thư mục (bao gồm các file trong thư mục con)
+                send_folder(folder_path)
+                
+                messagebox.showinfo("Server", f"Đã gửi thư mục {folder_name} lên server.")
+            else:
+                messagebox.showerror("Error", "Chỉ có thể chọn folder trong thư mục client_data.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Đã xảy ra lỗi: {e}")
+    else:  # Người dùng không chọn thư mục
+        messagebox.showinfo("Thông báo", "Bạn chưa chọn thư mục nào.")
 
 def get_folder_name(folder_path):
     try:
