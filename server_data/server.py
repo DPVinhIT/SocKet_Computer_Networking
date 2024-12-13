@@ -9,7 +9,7 @@ import time
 import logging
 
 PORT = 12345
-HEADER = 64
+HEADER = 1024
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
 FILE_UPLOAD_FILE_MESSAGE = "!UPLOAD_FILE"
@@ -283,68 +283,59 @@ def handle_file_upload(conn, addr, msg):
 # CLIENT UPLOAD FOLDER
 def handle_folder_upload(conn, addr):
     try:
-        folder_name = receive_message(conn)
-        # Tạo thư mục trong PUBLIC
-        folder_path2 = os.path.join(public_folder, folder_name)
-        if not os.path.exists(folder_path2):
-            os.makedirs(folder_path2)
 
-        logging.info(f"Starting to receive folder: {folder_name} from client {addr}")
-
-        # Nhận số lượng file trong thư mục
-        # num_files_msg = int(conn.recv(HEADER).decode(FORMAT))
-        # num_files = conn.recv(num_files_msg).decode(FORMAT)
+        folder_name = receive_message(conn)  # Nhận tên thư mục gốc
         
-        num_files = receive_message(conn)
-        num_files = int(num_files)
-                        
-        for _ in range(num_files):
-            # Nhận thông tin file
-            file_name_length = int(conn.recv(HEADER).decode(FORMAT))
-            file_name = conn.recv(file_name_length).decode(FORMAT)
+        folder_path = os.path.join(public_folder, folder_name)
+        
+        # Nếu thư mục đã tồn tại, thay đổi tên thư mục bằng cách thêm hậu tố
+        if os.path.exists(folder_path):
+            base_folder_name = folder_name
+            counter = 1
+            while os.path.exists(folder_path):
+                folder_path = os.path.join(public_folder, f"{base_folder_name} ({counter})")
+                counter += 1
+        
+        # Tạo thư mục trong PUBLIC
+        os.makedirs(folder_path, exist_ok=True)
 
-            # Nhận và lưu file
-            file_path = os.path.join(folder_path2, file_name)
-            file_length = int(conn.recv(HEADER).decode(FORMAT))
+        while True:
+            # Nhận tên thư mục con (relative path)
+            relative_path = receive_message(conn)
+            
+            if relative_path == "EOF":  # Nếu gặp tín hiệu kết thúc
+                break
 
-            file_directory = os.path.dirname(file_path)
-            if not os.path.exists(file_directory):
-                os.makedirs(file_directory)
-                
-            total_received = 0
-            with open(file_path, "wb") as file:
-                while total_received < file_length:
-                    file_data = conn.recv(1024)
-                    if not file_data:
-                        logging.error(f"Error receiving data for file {file_name}")
-                        break
-                    total_received += len(file_data)
-                    file.write(file_data)
+            absolute_path = os.path.join(folder_path, relative_path)
 
-            logging.info(f"File \"{file_name}\" uploaded successfully.")
+            # Xác định folder hay filefile
+            type = receive_message(conn)
+
+            if type == "FOLDER":
+                # Tạo thư mục con nếu folder
+                if not os.path.exists(absolute_path):
+                    os.makedirs(absolute_path)
+            elif type == "FILE":
+                # Tạo file 
+                file_length = int(conn.recv(HEADER).decode(FORMAT))
+                total_received = 0
+                with open(absolute_path, "wb") as file:
+                    while total_received < file_length:
+                        file_data = conn.recv(1024)
+                        if not file_data:
+                            logging.error(f"Error receiving data for file {absolute_path}")
+                            break
+                        total_received += len(file_data)
+                        file.write(file_data)
+
+                logging.info(f"File \"{absolute_path}\" uploaded successfully.")
 
         logging.info(f"Folder \"{folder_name}\" uploaded successfully from client {addr}")
 
     except Exception as e:
         logging.error(f"Error during folder upload from {addr}: {e}")
         conn.send("Error during upload.".encode(FORMAT))
-
-def handle_data(conn):
-    try:
-        data = conn.recv(1024)
-        if data:
-            try:
-                text_data = data.decode(FORMAT)
-                print(f"Received text data: {text_data}")
-            except UnicodeDecodeError:
-                print("Received non-text data, saving as binary.")
-                with open('received_file', 'wb') as file:
-                    file.write(data)
-        else:
-            print("No data received.")
-    except Exception as e:
-        print(f"Error receiving data: {e}") 
-
+        
 ##################################################################################################################################
 # XỬ LÍ CLIENT
 def handle_client(conn, addr):
