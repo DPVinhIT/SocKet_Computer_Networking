@@ -2,6 +2,7 @@ import socket
 import os
 import ast
 import threading
+from threading import Lock
 import tkinter as tk
 from tkinter import  messagebox, ttk, Frame, Text, Button, VERTICAL, WORD
 from tkinter import  Toplevel, Label, filedialog, StringVar, Entry, END, IntVar, Checkbutton
@@ -17,8 +18,8 @@ FILE_LIST_REQUEST = "!LIST"
 FILE_DOWNLOAD_REQUEST = "!DOWNLOAD"
 REGISTER_REQUEST = "!REGISTER"
 LOGIN_REQUEST = "!LOGIN"
-#SERVER = "192.168.1.97"  # Địa chỉ IP của server
-SERVER = socket.gethostbyname(socket.gethostname()) #Lấy ip của máy vì chạy cùng 1 máy
+SERVER = "192.168.1.157"  # Địa chỉ IP của server
+#SERVER = socket.gethostbyname(socket.gethostname()) #Lấy ip của máy vì chạy cùng 1 máy
 ADDR = (SERVER, PORT)
 
 folder_path = "client_data"
@@ -29,12 +30,12 @@ if not os.path.exists(folder_path):
 # Đăng nhập
 def register(username, password):
     send_message(f"{REGISTER_REQUEST} {username} {password}")
-    response = receive_message()
+    response = client.recv(2048).decode(FORMAT)
     messagebox.showinfo("Register", response)
 
 def login(username, password):
     send_message(f"{LOGIN_REQUEST} {username} {password}")
-    response = receive_message()
+    response = client.recv(2048).decode(FORMAT)
     if "success" in response.lower():
         messagebox.showinfo("Login", "Đăng nhập thành công!")
         return True
@@ -56,7 +57,7 @@ def on_login_button_click():
     password = password_var.get()
     if username and password:
         if login(username, password):
-            show_file_buttons()
+            client_interface()
     else:
         messagebox.showerror("Error", "Vui lòng nhập đầy đủ thông tin.")
 
@@ -77,8 +78,21 @@ def send_message(msg):
     client.send(send_length)
     client.send(message)
 
-def receive_message():
-    return client.recv(2048).decode(FORMAT)
+def receive_message(client):
+    msg_length = client.recv(HEADER)
+    if not msg_length:
+        return None
+    try:
+        msg_length = msg_length.decode(FORMAT)
+    except Exception as e:
+        print(f"Lỗi chiều dài tin nhắn: {e}")
+    msg_length = int(msg_length)  # Chuyển đổi chiều dài thông điệp thành số
+    msg = client.recv(msg_length)
+    try:
+        msg = msg.decode(FORMAT)
+    except Exception as e:
+        print(f"Lỗi nhận tin nhắn: {e}")
+    return msg
 
 #Dừng kết nối 
 def check_client():
@@ -156,16 +170,16 @@ def download_file(filename, tree_view):
         send_message(f"{FILE_DOWNLOAD_REQUEST} {filename}")
 
         # Nhận phản hồi đầu tiên từ server (tên file hoặc thông báo lỗi)
-        response = client.recv(HEADER).decode(FORMAT)
+        file_name = receive_message(client)
 
         # Kiểm tra nếu server trả về thông báo lỗi
-        if response == "File not found.":
+        if file_name == "File not found.":
             messagebox.askokcancel("Error", "Bạn không được tải file này! Nguyên nhân do bảo mật hoặc file không tồn tại")
             return
-
+        
         # Nếu nhận được tên file hợp lệ, tiếp tục nhận kích thước file
-        file_name = response.split("/")[-1]
-        file_size = int(client.recv(HEADER).decode(FORMAT))
+
+        file_size=receive_message(client)
 
         download_window1 = Toplevel(tree_view)
         download_window1.title(f"Download file: \"{file_name}\"")
@@ -184,7 +198,6 @@ def download_file(filename, tree_view):
         progress = ttk.Progressbar(download_window1, orient="horizontal", length=350, mode="determinate")
         progress.pack(padx=10, pady=10)
         progress["maximum"] = file_size
- 
         print(f"Đang tải xuống file: {file_name}, kích thước: {file_size} bytes")
 
         # Tạo thư mục client_data nếu chưa có
@@ -205,6 +218,7 @@ def download_file(filename, tree_view):
             try:
                 while total_received < file_size:
                     file_data = client.recv(1024)
+                    print(3)
                     if not file_data:
                         break            
                     total_received += len(file_data)
@@ -225,7 +239,7 @@ def download_file(filename, tree_view):
                 print(f"Lỗi khi tải file: {e}")
         download_window1.destroy()        
     except Exception as e:
-        print(f"Lỗi {e}")
+        print(f"Lỗi downnload: {e}")
 
 
 def parse_folder_tree(data):
@@ -403,7 +417,7 @@ def get_folder_name(folder_path):
         return None
 
 # Nút Upload
-def on_upload_button_click():
+def on_upload_file_button_click():
     file_path = filedialog.askopenfilename(
         title="Chọn file để gửi", initialdir="client_data")  # Chọn file từ máy tính
 
@@ -433,7 +447,7 @@ def insert_chat_box(str,color):
     chat_box.insert(END,current_time() + ": " + str,color)
     chat_box.config(state="disabled")
 
-def show_file_buttons():
+def client_interface():
     root.quit()
     root.destroy()
     
@@ -505,7 +519,7 @@ def show_file_buttons():
     download_button = Button(input_frame, text="Download",command=on_download_button_click, bg="#cde4ad", fg="black",font = ("Helvetica", 16, "bold"))
     download_button.place(relx=0.26, rely=0, relwidth=0.22, relheight=0.3)
 
-    upload_file_button = Button(input_frame, text="Upload file",command=on_upload_button_click, bg="#97dbae", fg="black",font = ("Helvetica", 16, "bold"))
+    upload_file_button = Button(input_frame, text="Upload file",command=on_upload_file_button_click, bg="#97dbae", fg="black",font = ("Helvetica", 16, "bold"))
     upload_file_button.place(relx=0.52, rely=0, relwidth=0.22, relheight=0.3)
 
     upload_folder_button = Button(input_frame, text="Upload folder",command=on_upload_folder_button_click, bg="#78d1d2", fg="black",font = ("Helvetica", 16, "bold"))
