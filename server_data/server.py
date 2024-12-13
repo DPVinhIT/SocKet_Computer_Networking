@@ -189,12 +189,13 @@ def handle_download_file(conn,addr,msg):
     # Đường dẫn tuyệt đối của thư mục PRIVATE
     private_folder_path = os.path.abspath(os.path.join(folder_path, "PRIVATE"))
     # So sánh các đường dẫn của file với thư mục PUBLIC
+    
     if not os.path.relpath(file_path, public_folder_path).startswith(os.pardir):
     # Nếu không nằm ngoài thư mục PUBLIC
         if os.path.exists(file_path):
-            conn.send(filename.encode(FORMAT))
+            send_message(conn,str(filename.split("/")[-1]))
             file_size = os.path.getsize(file_path)
-            conn.send(str(file_size).encode(FORMAT))
+            send_message(conn,str(file_size))
 
             with open(file_path, "rb") as f:
                 while True:
@@ -202,6 +203,7 @@ def handle_download_file(conn,addr,msg):
                     if not file_data:
                         break
                     conn.sendall(file_data)
+                conn.sendall(b"EOF")
                        
             logging.info(f"Download Successful: \"{filename}\" from client {addr}")
         else:
@@ -214,31 +216,6 @@ def handle_download_file(conn,addr,msg):
             logging.warning(f"Download Unsuccessful: \"{filename}\" from client {addr}")
 ##################################################################################################################################
 # CLIENT UPLOAD FILE
-def send_file_to_client(client_socket, filename):
-    try:
-        # Kiểm tra nếu file tồn tại
-        if os.path.exists(filename):
-            file_size = os.path.getsize(filename)
-            
-            # Gửi tên file và kích thước file
-            client_socket.send(filename.encode(FORMAT))
-            client_socket.send(str(file_size).encode(FORMAT))  # Gửi kích thước file như một số nguyên
-
-            # Đọc file và gửi dữ liệu
-            with open(filename, 'rb') as file:
-                file_data = file.read(1024)  # Đọc file từng phần (1024 bytes)
-                while file_data:
-                    client_socket.send(file_data)
-                    file_data = file.read(1024)  # Tiếp tục đọc file từng phần
-
-            print(f"File {filename} đã được gửi thành công.")
-        else:
-            # Gửi thông báo file không tồn tại
-            client_socket.send("File not found.".encode(FORMAT))
-    except Exception as e:
-        print(f"Error sending file: {e}")
-        client_socket.send("Error while sending file.".encode(FORMAT))
-
 def get_unique_filename(file_path):
     if not os.path.exists(file_path):
         return file_path
