@@ -694,7 +694,6 @@ show_password = Checkbutton(frame, variable=show_password_var,
     bg='white',fg='black',border=0
 )
 show_password.place(x=30, y=190)
-
 Label(frame,text="Show password",fg='black',bg='white',font=('Microsoft YaHei UI Light',9)).place(x=50, y=190)
 
 # Kết nối đến server
@@ -702,5 +701,5 @@ if not connect_to_server():
     root.quit()
     messagebox.showerror("Lỗi",f"Không thể kết nối tới server {SERVER}")
     root.destroy()
-
+    
 root.mainloop()
